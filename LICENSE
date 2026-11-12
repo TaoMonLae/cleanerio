@@ -1,0 +1,47 @@
+Cleanerio — Proprietary Software License
+
+Copyright (c) 2026 Min Htet Min Aung. All rights reserved.
+
+1. Ownership
+   This software, including its source code, compiled application, icon, logo
+   and documentation ("the Software"), is the property of the copyright holder.
+   It is licensed, not sold.
+
+2. What you may do
+   You may download and run unmodified copies of the official Cleanerio
+   application, as published by the copyright holder, for your own personal or
+   internal use.
+   You may view the source code in this repository for reference.
+
+3. What you may not do
+   Without prior written permission from the copyright holder, you may not:
+   a. copy, modify, merge or create derivative works of the Software;
+   b. redistribute, publish, sublicense, sell, rent or lease the Software or
+      any part of it, in source or compiled form;
+   c. use the Software, or any part of it, in another product or service;
+   d. use the Cleanerio name, icon or logo, except to refer to the Software;
+   e. remove or alter any copyright or license notice.
+
+4. Third-party components
+   The Software is built with third-party open-source libraries. Those
+   libraries remain under their own licenses, which this license does not
+   change.
+
+5. No warranty
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. THE SOFTWARE MOVES AND
+   DELETES FILES AT YOUR INSTRUCTION; YOU USE IT AT YOUR OWN RISK.
+
+6. Limitation of liability
+   IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES,
+   LOSS OF DATA OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS
+   USE.
+
+7. Termination
+   This license ends automatically if you break any of its terms. On
+   termination you must stop using the Software and delete your copies.
+
+For permissions beyond this license, contact the copyright holder through
+https://github.com/TaoMonLae.

@@ -91,3 +91,10 @@ keychain profile is set up. See the notes at the top of the script.
 | `MECHANICS.md` | The rules the app uses: sizes, ages, thresholds |
 
 Built with [egui](https://github.com/emilk/egui).
+
+## License
+
+Cleanerio is proprietary software. Copyright (c) 2026 Min Htet Min Aung. All rights reserved.
+
+You may download and run the official app and read the source for reference. Copying,
+modifying or redistributing it needs written permission. See [LICENSE](LICENSE).
