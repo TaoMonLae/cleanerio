@@ -1,0 +1,191 @@
+{
+ "version": 1,
+ "values": [
+  {
+   "name": "low disk warning share",
+   "group": "activity",
+   "value": 0.1,
+   "unit": "of disk",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "low disk warning choices",
+   "group": "activity",
+   "value": "2,5,10,20,30,50,100 GB",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "unknown disk size fallback",
+   "group": "activity",
+   "value": 1000000000000,
+   "unit": "bytes",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "trash size alert",
+   "group": "cleanup",
+   "value": 2000000000,
+   "unit": "bytes",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "large file minimum",
+   "group": "my files",
+   "value": 50000001,
+   "unit": "bytes",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "size group small",
+   "group": "my files",
+   "value": "50,000,000 < size <= 500,000,000",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "size group average",
+   "group": "my files",
+   "value": "500,000,000 < size <= 1,000,000,000",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "size group huge",
+   "group": "my files",
+   "value": "size > 999,999,999",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "old file age",
+   "group": "my files",
+   "value": 365,
+   "unit": "days",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "last-opened filters",
+   "group": "my files",
+   "value": "7, 30, 182, 365 days",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "fresh duplicates window",
+   "group": "my files",
+   "value": 90,
+   "unit": "days",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "unused app age",
+   "group": "applications",
+   "value": 180,
+   "unit": "days",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "space map style",
+   "group": "space map",
+   "value": "bubbles",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "old download age",
+   "group": "my files",
+   "value": 90,
+   "unit": "days",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "duplicate quick-compare bytes",
+   "group": "my files",
+   "value": 65536,
+   "unit": "bytes",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "threat families in built-in database",
+   "group": "protection",
+   "value": 19,
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "threat categories",
+   "group": "protection",
+   "value": "Trojan, Adware, Spyware, Miner, Unwanted",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "health score maximum",
+   "group": "health",
+   "value": 100,
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "health level edges",
+   "group": "health",
+   "value": "Excellent >89, Good >59, Fair >39, Requires Attention >0, Critical 0",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "penalty out of disk space",
+   "group": "health",
+   "value": 20,
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "penalty no recent smart scan",
+   "group": "health",
+   "value": 10,
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "penalty unused apps",
+   "group": "health",
+   "value": 10,
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "penalty trash overfill",
+   "group": "health",
+   "value": 5,
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "penalty uptime",
+   "group": "health",
+   "value": 5,
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "penalty no recent threat scan",
+   "group": "health",
+   "value": 5,
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "penalty critical battery",
+   "group": "health",
+   "value": 80,
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "restart suggested after",
+   "group": "health",
+   "value": 7,
+   "unit": "days",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "recent scan window",
+   "group": "health",
+   "value": 7,
+   "unit": "days",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "memory tile warning",
+   "group": "health",
+   "value": 0.85,
+   "unit": "share",
+   "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  }
+ ]
+}

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "updated": "2026-11-12",
+  "families": [
+    {"name": "Adload", "category": "Adware", "words": ["adload"], "paths": ["~/Library/Application Support/.mainHelper"]},
+    {"name": "Pirrit", "category": "Adware", "words": ["pirrit"], "paths": []},
+    {"name": "Bundlore", "category": "Adware", "words": ["bundlore"], "paths": []},
+    {"name": "Genieo", "category": "Adware", "words": ["genieo", "installmac"], "paths": ["~/Library/Application Support/Genieo"]},
+    {"name": "VSearch", "category": "Adware", "words": ["vsearch", "conduit"], "paths": []},
+    {"name": "SearchBaron", "category": "Adware", "words": ["searchbaron", "searchmine", "operatorsearch", "mmsearch"], "paths": []},
+    {"name": "MaxOfferDeal", "category": "Adware", "words": ["maxofferdeal", "chill-tab", "spigot", "crossrider"], "paths": []},
+    {"name": "Shlayer", "category": "Trojan", "words": ["shlayer"], "paths": []},
+    {"name": "EvilQuest", "category": "Trojan", "words": ["questd", "evilquest", "thiefquest"], "paths": ["~/Library/AppQuest", "~/Library/LaunchAgents/com.apple.questd.plist", "/Library/LaunchDaemons/com.apple.questd.plist"]},
+    {"name": "Silver Sparrow", "category": "Trojan", "words": ["verx_updater", "init_verx", "agent_updater"], "paths": ["~/Library/Application Support/verx_updater", "~/Library/Application Support/agent_updater", "~/Library/LaunchAgents/verx.plist", "~/Library/LaunchAgents/init_verx.plist"]},
+    {"name": "Mokes", "category": "Trojan", "words": ["storeuserd"], "paths": ["~/Library/App Store/storeuserd"]},
+    {"name": "Proton", "category": "Trojan", "words": ["com.xpcservice.proton", "proton.xpc"], "paths": []},
+    {"name": "Atomic Stealer", "category": "Spyware", "words": ["atomicstealer", "amos-stealer"], "paths": []},
+    {"name": "FruitFly", "category": "Spyware", "words": ["com.client.client"], "paths": ["~/.client", "~/Library/LaunchAgents/com.client.client.plist"]},
+    {"name": "CloudMensis", "category": "Spyware", "words": ["windowserver.plist"], "paths": ["~/Library/Containers/com.apple.FaceTime/Data/Library/windowserver"]},
+    {"name": "Keylogger apps", "category": "Spyware", "words": ["refog", "spyrix", "aobo keylogger", "elite keylogger", "keystroke spy"], "paths": []},
+    {"name": "XMRig miner", "category": "Miner", "words": ["xmrig"], "paths": []},
+    {"name": "CPU miners", "category": "Miner", "words": ["minerd", "cpuminer", "nicehash", "cgminer", "bfgminer"], "paths": []},
+    {"name": "Fake cleaners", "category": "Unwanted", "words": ["mackeeper", "advancedmaccleaner", "mughthesec", "zipcloud", "silverinstaller"], "paths": []}
+  ],
+  "sha256": {}
+}

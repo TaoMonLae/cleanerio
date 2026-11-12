@@ -1,0 +1,6 @@
+/target
+/dist
+/backup_*
+/_to_delete
+/shots
+.DS_Store
