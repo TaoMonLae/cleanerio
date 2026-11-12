@@ -66,13 +66,13 @@ pub const RECENT_SCAN_DAYS: u64 = 7;
 /// >0 Requires Attention, otherwise Critical.
 pub fn health_level(score: i64) -> (&'static str, Color32) {
     if score > 89 {
-        ("Excellent", Color32::from_rgb(120, 230, 230))
+        ("Excellent", GOOD)
     } else if score > 59 {
-        ("Good", Color32::from_rgb(120, 230, 230))
+        ("Good", GOOD)
     } else if score > 39 {
         ("Fair", WARN)
     } else if score > 0 {
-        ("Requires Attention", Color32::from_rgb(255, 150, 110))
+        ("Requires Attention", Color32::from_rgb(178, 90, 18))
     } else {
         ("Critical", BAD)
     }
@@ -86,7 +86,7 @@ const SMART_STEPS: [(Page, &str); 5] = [
     (Page::Clutter, "Looking for clutter…"),
 ];
 
-fn start_smart() -> Job<SmartResult> {
+pub fn start_smart() -> Job<SmartResult> {
     Job::spawn(|p| {
         p.stage(0);
         let junk = scan::scan_junk(p);
@@ -111,18 +111,12 @@ fn start_smart() -> Job<SmartResult> {
     })
 }
 
-/// A small coloured square with a symbol, like the bullets on the welcome screens.
+/// A small tinted square with a symbol in the section's colour.
 pub fn glyph_tile(ui: &mut Ui, g: Glyph, color: Color32, size: f32) {
     let (r, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
     let p = ui.painter();
-    let rad = (size * 0.3) as u8;
-    p.rect_filled(r, rad, mix(color, Color32::WHITE, 0.2));
-    p.rect_filled(
-        Rect::from_min_max(r.min, Pos2::new(r.right(), r.center().y)),
-        egui::CornerRadius { nw: rad, ne: rad, sw: 0, se: 0 },
-        alpha(Color32::WHITE, 30),
-    );
-    art::glyph(p, g, r.shrink(size * 0.22), Color32::WHITE);
+    p.rect_filled(r, (size * 0.28) as u8, mix(Color32::WHITE, color, 0.14));
+    art::glyph(p, g, r.shrink(size * 0.24), mix(color, Color32::BLACK, 0.28));
 }
 
 fn junk_glyph(k: JunkKind) -> Glyph {
@@ -194,7 +188,7 @@ impl CleanerApp {
         }
         let rect = ui.max_rect();
         let top_p = ui.painter().with_clip_rect(Rect::EVERYTHING);
-        top_p.text(Pos2::new(rect.center().x, rect.top() - 26.0), Align2::CENTER_CENTER, Page::Smart.name(), FontId::proportional(16.0), alpha(Color32::WHITE, 210));
+        top_p.text(Pos2::new(rect.center().x, rect.top() - 26.0), Align2::CENTER_CENTER, Page::Smart.name(), FontId::proportional(16.0), MUTED);
 
         let junk_size: u64 = self
             .junk
@@ -238,17 +232,17 @@ impl CleanerApp {
         } else {
             (String::new(), "Searching…".into())
         };
-        if self.smart_card(ui, r_clean, Page::Cleanup, (0.86, 0.12, 0.42), &big, &small) && finished {
+        if self.smart_card(ui, r_clean, Page::Cleanup, (0.5, 0.40, 0.30), &big, &small) && finished {
             go = Some(Page::Cleanup);
         }
         let (big, small) = if finished {
-            (format!("{} tasks", tasks), format!("recommended · memory {:.0}% used", self.mem_used as f32 / self.mem_total as f32 * 100.0))
+            (plural(tasks, "task"), format!("recommended · memory {:.0}% used", self.mem_used as f32 / self.mem_total as f32 * 100.0))
         } else if done(2) {
             (String::new(), "Checked".into())
         } else {
             (String::new(), "Waiting…".into())
         };
-        if self.smart_card(ui, r_perf, Page::Performance, (0.55, 0.45, 0.5), &big, &small) && finished {
+        if self.smart_card(ui, r_perf, Page::Performance, (0.5, 0.40, 0.30), &big, &small) && finished {
             go = Some(Page::Performance);
         }
         let (big, small) = if finished {
@@ -258,7 +252,7 @@ impl CleanerApp {
         } else {
             (String::new(), String::new())
         };
-        if self.smart_card(ui, r_apps, Page::Apps, (0.5, 1.05, 0.28), &big, &small) && finished {
+        if self.smart_card(ui, r_apps, Page::Apps, (0.80, 0.52, 0.20), &big, &small) && finished {
             go = Some(Page::Apps);
         }
         let (big, small) = if finished {
@@ -268,7 +262,7 @@ impl CleanerApp {
         } else {
             (String::new(), String::new())
         };
-        if self.smart_card(ui, r_clut, Page::Clutter, (0.5, 1.05, 0.28), &big, &small) && finished {
+        if self.smart_card(ui, r_clut, Page::Clutter, (0.80, 0.52, 0.20), &big, &small) && finished {
             go = Some(Page::Clutter);
         }
 
@@ -277,23 +271,23 @@ impl CleanerApp {
         if let Some((s, status)) = &running {
             let (page, title) = SMART_STEPS[(*s).min(4)];
             let acc = page.accent();
-            art::panel(&p, r_mid, 22.0, alpha(mix(acc, Color32::WHITE, 0.2), 130), alpha(mix(acc, Color32::WHITE, 0.4), 235), Stroke::new(1.0, alpha(Color32::WHITE, 70)));
+            art::panel(&p, r_mid, 20.0, mix(Color32::WHITE, acc, 0.16), mix(Color32::WHITE, acc, 0.12), Stroke::NONE);
             let t = ui.input(|i| i.time) as f32;
             let c = Pos2::new(r_mid.center().x, r_mid.center().y + 10.0 + (t * 2.0).sin() * 5.0);
             art::hero(&p, page.outline(), page.glyph(), c, r_mid.height() * 0.24, acc);
-            p.text(Pos2::new(r_mid.center().x, r_mid.top() + 64.0), Align2::CENTER_CENTER, title, FontId::proportional(40.0), Color32::WHITE);
-            p.text(Pos2::new(r_mid.center().x, r_mid.bottom() - 40.0), Align2::CENTER_CENTER, elide(status, 70), FontId::proportional(16.0), alpha(Color32::from_rgb(40, 20, 50), 220));
+            p.text(Pos2::new(r_mid.center().x, r_mid.top() + 64.0), Align2::CENTER_CENTER, title, FontId::proportional(34.0), TEXT);
+            p.text(Pos2::new(r_mid.center().x, r_mid.bottom() - 40.0), Align2::CENTER_CENTER, elide(status, 70), FontId::proportional(15.0), BODY);
             ui.ctx().request_repaint();
         } else {
             let page = Page::Protection;
             let resp = ui.interact(r_mid, ui.scope_id().with("mid"), Sense::click());
             let acc = page.accent();
-            art::panel(&p, r_mid, 22.0, alpha(mix(acc, Color32::WHITE, 0.15), if resp.hovered() { 120 } else { 90 }), alpha(mix(acc, Color32::WHITE, 0.3), 200), Stroke::new(1.0, alpha(Color32::WHITE, 60)));
+            art::panel(&p, r_mid, 20.0, mix(Color32::WHITE, acc, if resp.hovered() { 0.20 } else { 0.14 }), mix(Color32::WHITE, acc, 0.12), Stroke::NONE);
             art::hero(&p, page.outline(), page.glyph(), Pos2::new(r_mid.center().x, r_mid.center().y + 10.0), r_mid.height() * 0.22, acc);
             let title = if threats > 0 { plural(threats, "threat") + " found" } else { "No threats found".to_string() };
-            p.text(Pos2::new(r_mid.center().x, r_mid.top() + 64.0), Align2::CENTER_CENTER, title, FontId::proportional(40.0), Color32::WHITE);
+            p.text(Pos2::new(r_mid.center().x, r_mid.top() + 64.0), Align2::CENTER_CENTER, title, FontId::proportional(34.0), TEXT);
             let sub = if review > 0 { format!("{} worth a look", plural(review, "background item")) } else { "Your background items look clean".to_string() };
-            p.text(Pos2::new(r_mid.center().x, r_mid.bottom() - 40.0), Align2::CENTER_CENTER, sub, FontId::proportional(16.0), alpha(Color32::WHITE, 220));
+            p.text(Pos2::new(r_mid.center().x, r_mid.bottom() - 40.0), Align2::CENTER_CENTER, sub, FontId::proportional(15.0), BODY);
             if resp.clicked() {
                 go = Some(Page::Protection);
             }
@@ -316,7 +310,7 @@ impl CleanerApp {
             return;
         }
         let again = Rect::from_min_size(Pos2::new(rect.right() - 120.0, rect.bottom() - 40.0), Vec2::new(120.0, 30.0));
-        if ui.put(again, egui::Button::new(RichText::new("Start over").size(13.0)).fill(alpha(Color32::WHITE, 18)).corner_radius(14.0)).clicked() {
+        if ui.put(again, egui::Button::new(RichText::new("Start over").size(13.0)).fill(Color32::WHITE).stroke(Stroke::new(1.0, EDGE)).corner_radius(10.0)).clicked() {
             self.smart_done = false;
         }
         if self.action_job.is_none() && round_button(ui, "Run", Page::Smart.accent()) {
@@ -341,21 +335,22 @@ impl CleanerApp {
         let p = ui.painter().with_clip_rect(rect);
         let acc = page.accent();
         let k = if resp.hovered() { 28 } else { 16 };
-        art::panel(&p, rect, 22.0, alpha(Color32::WHITE, k), alpha(Color32::from_rgb(10, 0, 40), 60), Stroke::new(1.0, alpha(Color32::WHITE, 36)));
+        let fill = if k > 16 { GROUND } else { Color32::WHITE };
+        art::panel(&p, rect, 16.0, fill, fill, Stroke::new(1.0, LINE));
         let (fx, fy, fr) = art_at;
         let c = Pos2::new(rect.left() + rect.width() * fx, rect.top() + rect.height() * fy);
         let r = rect.width().min(rect.height() * 1.6) * fr;
         art::hero(&p.with_clip_rect(rect.shrink(1.5)), page.outline(), page.glyph(), c, r, acc);
-        p.text(rect.left_top() + Vec2::new(22.0, 24.0), Align2::LEFT_TOP, page.name(), FontId::proportional(18.0), alpha(Color32::WHITE, 225));
+        p.text(rect.left_top() + Vec2::new(22.0, 24.0), Align2::LEFT_TOP, page.name(), FontId::proportional(17.0), TEXT);
         let wrap = rect.width() - 44.0;
-        let sg = p.layout(small.to_string(), FontId::proportional(15.0), alpha(Color32::WHITE, 210), wrap);
+        let sg = p.layout(small.to_string(), FontId::proportional(14.5), MUTED, wrap);
         let sy = rect.bottom() - 22.0 - sg.size().y;
         if !big.is_empty() {
             let size = if rect.width() < 260.0 { 30.0 } else { 34.0 };
-            let bg = p.layout(big.to_string(), FontId::proportional(size), Color32::WHITE, wrap);
-            p.galley(Pos2::new(rect.left() + 22.0, sy - bg.size().y - 4.0), bg, Color32::WHITE);
+            let bg = p.layout(big.to_string(), FontId::proportional(size), TEXT, wrap);
+            p.galley(Pos2::new(rect.left() + 22.0, sy - bg.size().y - 4.0), bg, TEXT);
         }
-        p.galley(Pos2::new(rect.left() + 22.0, sy), sg, Color32::WHITE);
+        p.galley(Pos2::new(rect.left() + 22.0, sy), sg, MUTED);
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
@@ -385,7 +380,7 @@ impl CleanerApp {
         let trash_size: u64 = groups.iter().filter(|g| g.kind == JunkKind::Trash).map(|g| g.total()).sum();
         let (mut rescan, mut empty) = (false, false);
         ui.horizontal(|ui| {
-            ui.label(RichText::new(human(total)).size(34.0).strong().color(Color32::WHITE));
+            ui.label(RichText::new(human(total)).size(34.0).strong().color(TEXT));
             ui.label(RichText::new("selected to clean").size(15.0).color(MUTED));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ghost(ui, "Scan again").clicked() {
@@ -824,9 +819,9 @@ impl CleanerApp {
                         let a = &apps[i];
                         let (r, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 46.0), Sense::click());
                         if app_sel == Some(i) {
-                            ui.painter().rect_filled(r, 10.0, alpha(accent, 90));
+                            ui.painter().rect_filled(r, 10.0, TINT);
                         } else if resp.hovered() {
-                            ui.painter().rect_filled(r, 10.0, alpha(Color32::WHITE, 14));
+                            ui.painter().rect_filled(r, 10.0, ink(10));
                         }
                         let ic = Rect::from_center_size(Pos2::new(r.left() + 24.0, r.center().y), Vec2::splat(32.0));
                         let hue = (a.name.bytes().map(|b| b as u32).sum::<u32>() % 360) as f32 / 360.0;
@@ -1209,18 +1204,22 @@ impl CleanerApp {
             let items: Vec<(usize, f64)> = node.children.iter().enumerate().filter(|(_, c)| c.size > 0).map(|(i, c)| (i, c.size as f64)).collect();
             let bubbles = bubble_map(&items, rect);
             let painter = ui.painter_at(rect);
+            painter.rect_filled(rect, 20.0, Page::Space.tint());
             for (i, c, r) in &bubbles {
                 let item = &node.children[*i];
                 let br = Rect::from_center_size(*c, Vec2::splat(r * 2.0));
                 let resp = ui.interact(br, ui.scope_id().with(("bubble", *i)), Sense::click());
                 let hover = resp.hovered();
-                let hue = 0.70 + ((*i as f32) * 0.07) % 0.25;
-                let base: Color32 = hsv(hue, if item.is_dir { 0.6 } else { 0.3 }, if item.is_dir { 0.9 } else { 0.75 });
-                let k = if sel == Some(*i) { 170 } else if hover { 135 } else { 95 };
-                painter.circle_filled(*c + Vec2::new(0.0, r * 0.06), *r, alpha(Color32::BLACK, 40));
-                painter.circle_filled(*c, *r, alpha(base, k));
-                painter.circle_filled(*c - Vec2::new(r * 0.25, r * 0.3), r * 0.55, alpha(Color32::WHITE, 16));
-                painter.circle_stroke(*c, *r, Stroke::new(1.5, alpha(Color32::WHITE, if sel == Some(*i) { 200 } else { 70 })));
+                let hue = 0.45 + ((*i as f32) * 0.11) % 0.5;
+                let base: Color32 = hsv(hue, if item.is_dir { 0.62 } else { 0.25 }, if hover { 0.58 } else { 0.5 });
+                painter.circle_filled(*c + Vec2::new(0.0, r * 0.10), r * 0.97, alpha(Color32::from_rgb(40, 30, 90), 40));
+                painter.circle_filled(*c, *r, mix(base, Color32::BLACK, 0.22));
+                painter.circle_filled(*c - Vec2::new(r * 0.05, r * 0.07), r * 0.93, base);
+                painter.circle_filled(*c - Vec2::new(r * 0.36, r * 0.42), r * 0.13, alpha(Color32::WHITE, 85));
+                if sel == Some(*i) {
+                    painter.circle_stroke(*c, *r + 2.0, Stroke::new(3.0, Color32::WHITE));
+                    painter.circle_stroke(*c, *r + 5.0, Stroke::new(2.0, ACCENT));
+                }
                 if *r > 34.0 {
                     let name = elide(&item.name, (r / 4.5) as usize);
                     painter.text(*c - Vec2::new(0.0, 8.0), Align2::CENTER_CENTER, name, FontId::proportional((r / 5.0).clamp(11.0, 16.0)), Color32::WHITE);
@@ -1254,9 +1253,9 @@ impl CleanerApp {
                     }
                     Some(c) => {
                         let (r, _) = ui.allocate_exact_size(Vec2::splat(48.0), Sense::hover());
-                        art::glyph(ui.painter(), if c.is_dir { Glyph::Folder } else { Glyph::Copy }, r, Color32::WHITE);
+                        art::glyph(ui.painter(), if c.is_dir { Glyph::Folder } else { Glyph::Copy }, r, ACCENT);
                         ui.label(RichText::new(&c.name).size(16.0).strong());
-                        ui.label(RichText::new(human(c.size)).size(24.0).color(Color32::WHITE));
+                        ui.label(RichText::new(human(c.size)).size(24.0).color(ACCENT_DARK));
                         if c.is_dir {
                             ui.label(RichText::new(format!("{} items inside", c.items)).color(MUTED));
                         }
@@ -1522,8 +1521,8 @@ impl CleanerApp {
             let tile = |ui: &mut Ui, g: Glyph, title: &str, line: String, line_col: Color32, action: Option<&str>| -> bool {
                 let mut clicked = false;
                 egui::Frame::new()
-                    .fill(alpha(Color32::WHITE, 14))
-                    .stroke(Stroke::new(1.0, alpha(Color32::WHITE, 24)))
+                    .fill(Color32::WHITE)
+                    .stroke(Stroke::new(1.0, LINE))
                     .corner_radius(14.0)
                     .inner_margin(egui::Margin::same(14))
                     .show(ui, |ui| {
@@ -1531,7 +1530,7 @@ impl CleanerApp {
                         ui.set_height(70.0);
                         ui.horizontal(|ui| {
                             let (r, _) = ui.allocate_exact_size(Vec2::splat(26.0), Sense::hover());
-                            art::glyph(ui.painter(), g, r, alpha(Color32::WHITE, 220));
+                            art::glyph(ui.painter(), g, r, ACCENT);
                             ui.vertical(|ui| {
                                 ui.label(RichText::new(title).size(16.0).strong());
                                 ui.label(RichText::new(line).size(13.5).color(line_col));
@@ -1539,7 +1538,7 @@ impl CleanerApp {
                         });
                         if let Some(a) = action {
                             ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
-                                if ui.add(egui::Button::new(RichText::new(a).size(15.0).strong().color(Color32::from_rgb(120, 230, 230))).frame(false)).clicked() {
+                                if ui.add(egui::Button::new(RichText::new(a).size(15.0).strong().color(ACCENT_DARK)).frame(false)).clicked() {
                                     clicked = true;
                                 }
                             });
@@ -1549,7 +1548,7 @@ impl CleanerApp {
             };
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 12.0;
-                let dc = if free < limit { WARN } else { Color32::from_rgb(240, 200, 110) };
+                let dc = if free < limit { WARN } else { MUTED };
                 if tile(ui, Glyph::Disk, "Startup disk", format!("Available: {}", human(free)), dc, Some("Free Up")) {
                     go = Some((Page::Cleanup, 0));
                 }
@@ -1668,9 +1667,9 @@ fn agent_row(ui: &mut Ui, it: &mut scan::AgentItem) {
 fn category_tag(ui: &mut Ui, c: &str, n: usize) {
     let col = match c {
         "Trojan" => BAD,
-        "Spyware" => Color32::from_rgb(255, 120, 200),
+        "Spyware" => Color32::from_rgb(176, 48, 118),
         "Miner" => WARN,
-        "Adware" => Color32::from_rgb(255, 150, 110),
+        "Adware" => Color32::from_rgb(178, 90, 18),
         _ => MUTED,
     };
     let text = format!("{n} {c}");

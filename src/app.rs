@@ -77,19 +77,24 @@ impl Page {
     /// Main colour for buttons, bars and pictures.
     pub fn accent(self) -> Color32 {
         match self {
-            Page::Smart => Color32::from_rgb(205, 70, 215),
-            Page::Cleanup => Color32::from_rgb(95, 185, 80),
-            Page::Protection => Color32::from_rgb(225, 75, 175),
-            Page::Performance => Color32::from_rgb(235, 135, 55),
-            Page::Apps => Color32::from_rgb(55, 120, 235),
-            Page::Clutter => Color32::from_rgb(70, 170, 165),
-            Page::Space => Color32::from_rgb(130, 70, 240),
-            Page::Cloud => Color32::from_rgb(70, 150, 235),
-            Page::Tools => Color32::from_rgb(150, 120, 230),
-            Page::Activity => Color32::from_rgb(90, 140, 240),
+            Page::Smart => Color32::from_rgb(122, 86, 240),
+            Page::Cleanup => Color32::from_rgb(34, 160, 107),
+            Page::Protection => Color32::from_rgb(217, 72, 138),
+            Page::Performance => Color32::from_rgb(217, 122, 30),
+            Page::Apps => Color32::from_rgb(63, 120, 224),
+            Page::Clutter => Color32::from_rgb(31, 152, 146),
+            Page::Space => Color32::from_rgb(110, 80, 224),
+            Page::Cloud => Color32::from_rgb(60, 138, 219),
+            Page::Tools => Color32::from_rgb(108, 103, 145),
+            Page::Activity => Color32::from_rgb(76, 104, 181),
         }
     }
-    /// Window background corners: top-left, top-right, bottom-left, bottom-right.
+    /// The soft tint behind a screen's 3D object.
+    pub fn tint(self) -> Color32 {
+        mix(Color32::WHITE, self.accent(), 0.13)
+    }
+    /// Window background corners of the old look (unused).
+    #[allow(dead_code)]
     pub fn bg(self) -> [Color32; 4] {
         let c = Color32::from_rgb;
         match self {
@@ -268,25 +273,34 @@ pub struct CleanerApp {
 impl CleanerApp {
     pub fn new(cc: &eframe::CreationContext<'_>, shot: Option<PathBuf>) -> Self {
         let ctx = &cc.egui_ctx;
-        ctx.set_visuals(egui::Visuals::dark());
+        ctx.set_visuals(egui::Visuals::light());
         ctx.all_styles_mut(|s| {
             s.spacing.item_spacing = Vec2::new(8.0, 8.0);
             s.spacing.button_padding = Vec2::new(12.0, 5.0);
-            s.visuals.override_text_color = Some(TEXT);
-            s.visuals.selection.bg_fill = Color32::from_rgba_unmultiplied(255, 255, 255, 60);
-            s.visuals.widgets.inactive.weak_bg_fill = alpha(Color32::WHITE, 22);
-            s.visuals.widgets.inactive.bg_fill = alpha(Color32::WHITE, 22);
-            s.visuals.widgets.hovered.weak_bg_fill = alpha(Color32::WHITE, 40);
-            s.visuals.widgets.hovered.bg_fill = alpha(Color32::WHITE, 40);
-            // tick boxes: an outline you can see when empty, a clear white tick when on
-            s.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, alpha(Color32::WHITE, 120));
-            s.visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, alpha(Color32::WHITE, 200));
-            s.visuals.widgets.inactive.fg_stroke = Stroke::new(1.8, Color32::WHITE);
-            s.visuals.widgets.hovered.fg_stroke = Stroke::new(1.8, Color32::WHITE);
-            s.visuals.widgets.active.fg_stroke = Stroke::new(1.8, Color32::WHITE);
-            s.visuals.extreme_bg_color = alpha(Color32::BLACK, 60);
-            s.visuals.window_fill = Color32::from_rgb(40, 30, 70);
-            s.visuals.panel_fill = Color32::TRANSPARENT;
+            let v = &mut s.visuals;
+            v.override_text_color = Some(TEXT);
+            v.selection.bg_fill = TINT;
+            v.selection.stroke = Stroke::new(1.0, ACCENT_DARK);
+            v.hyperlink_color = ACCENT_DARK;
+            for w in [&mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
+                w.weak_bg_fill = Color32::WHITE;
+                w.bg_fill = Color32::WHITE;
+                w.bg_stroke = Stroke::new(1.0, EDGE);
+                w.fg_stroke = Stroke::new(1.6, TEXT);
+                w.corner_radius = egui::CornerRadius::same(8);
+            }
+            v.widgets.inactive.bg_stroke = Stroke::new(1.2, Color32::from_rgb(168, 174, 190));
+            v.widgets.hovered.weak_bg_fill = GROUND;
+            v.widgets.hovered.bg_fill = GROUND;
+            v.widgets.hovered.bg_stroke = Stroke::new(1.0, MUTED);
+            v.widgets.active.weak_bg_fill = TINT;
+            v.widgets.active.bg_fill = TINT;
+            v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, LINE);
+            v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, TEXT);
+            v.extreme_bg_color = Color32::WHITE;
+            v.window_fill = Color32::WHITE;
+            v.window_stroke = Stroke::new(1.0, LINE);
+            v.panel_fill = Color32::TRANSPARENT;
         });
         let start_page = match std::env::var("CLEANERIO_PAGE").unwrap_or_default().as_str() {
             "cleanup" => Page::Cleanup,
@@ -636,68 +650,71 @@ impl CleanerApp {
 
     // ------------------------------------------------------------------ sidebar
 
+    /// The sidebar always shows its labels.
+    #[allow(dead_code)]
     pub fn sidebar_expanded(&self) -> bool {
-        self.page == Page::Smart && self.smart_job.is_none() && !self.smart_done
+        true
     }
 
-    fn nav_item(&self, ui: &mut Ui, rect: Rect, page: Page, y: f32, expanded: bool, row_h: f32) -> bool {
+    fn nav_item(&self, ui: &mut Ui, rect: Rect, page: Page, y: f32, row_h: f32) -> bool {
         let selected = self.page == page;
-        let r = if expanded {
-            Rect::from_min_size(Pos2::new(rect.left() + 12.0, y), Vec2::new(rect.width() - 30.0, row_h - 8.0))
-        } else {
-            Rect::from_center_size(Pos2::new(rect.center().x, y + row_h / 2.0 - 4.0), Vec2::splat(54.0))
-        };
+        let r = Rect::from_min_size(Pos2::new(rect.left() + 10.0, y), Vec2::new(rect.width() - 20.0, row_h - 2.0));
         let resp = ui.interact(r, ui.scope_id().with(("nav", page as usize)), Sense::click());
         let p = ui.painter();
         if selected {
-            p.rect_filled(r, 14.0, alpha(Color32::WHITE, 34));
-            p.rect_stroke(r, 14.0, Stroke::new(1.0, alpha(Color32::WHITE, 40)), egui::StrokeKind::Inside);
+            p.rect_filled(r, 10.0, TINT);
         } else if resp.hovered() {
-            p.rect_filled(r, 14.0, alpha(Color32::WHITE, 16));
+            p.rect_filled(r, 10.0, ink(10));
         }
-        let icon_c = if expanded { Pos2::new(r.left() + 30.0, r.center().y) } else { r.center() };
-        let ir = Rect::from_center_size(icon_c, Vec2::splat(26.0));
-        art::glyph(p, page.glyph(), ir.translate(Vec2::new(0.0, 1.5)), alpha(Color32::BLACK, 60));
-        let col = if selected { Color32::WHITE } else { Color32::from_rgb(232, 225, 245) };
+        let col = if selected { ACCENT_DARK } else { BODY };
+        let ir = Rect::from_center_size(Pos2::new(r.left() + 22.0, r.center().y), Vec2::splat(20.0));
         art::glyph(p, page.glyph(), ir, col);
-        if expanded {
-            p.text(Pos2::new(r.left() + 60.0, r.center().y), Align2::LEFT_CENTER, page.name(), FontId::proportional(16.5), TEXT);
-        }
+        p.text(Pos2::new(r.left() + 44.0, r.center().y), Align2::LEFT_CENTER, page.name(), FontId::proportional(14.5), if selected { ACCENT_DARK } else { TEXT });
         let dot = match page {
             Page::Cleanup => self.junk.as_ref().is_some_and(|j| j.iter().any(|g| !g.items.is_empty())),
             Page::Protection => self.agents.as_ref().is_some_and(|a| a.iter().any(|i| i.verdict == scan::Verdict::Threat)),
             _ => false,
         };
         if dot {
-            p.circle_filled(Pos2::new(icon_c.x + 16.0, icon_c.y - 14.0), 4.5, Color32::from_rgb(255, 120, 200));
+            p.circle_filled(Pos2::new(r.right() - 14.0, r.center().y), 4.0, if page == Page::Protection { BAD } else { ACCENT });
         }
-        let resp = if expanded { resp } else { resp.on_hover_text(page.name()) };
         resp.clicked()
     }
 
     fn sidebar(&mut self, ui: &mut Ui) {
         let rect = ui.max_rect();
-        let expanded = self.sidebar_expanded();
-        ui.painter().rect_filled(rect, 0.0, alpha(Color32::BLACK, 18));
-        ui.painter().line_segment(
-            [Pos2::new(rect.right() - 0.5, rect.top() + 90.0), Pos2::new(rect.right() - 0.5, rect.bottom() - 220.0)],
-            Stroke::new(1.0, alpha(Color32::WHITE, 18)),
-        );
-        let row_h = 60.0;
+        let p = ui.painter().clone();
+        p.rect_filled(rect, 0.0, Color32::WHITE);
+        p.line_segment([Pos2::new(rect.right() - 0.5, rect.top()), Pos2::new(rect.right() - 0.5, rect.bottom())], Stroke::new(1.0, LINE));
+        // the app's mark and name, below the window buttons
+        let mark = Rect::from_min_size(Pos2::new(rect.left() + 20.0, rect.top() + 46.0), Vec2::splat(28.0));
+        art::brand_mark(&p, mark);
+        p.text(Pos2::new(mark.right() + 10.0, mark.center().y + 1.0), Align2::LEFT_CENTER, "Cleanerio", FontId::proportional(19.0), TEXT);
+        let row_h = 42.0;
         let mut clicked = None;
-        let mut y = rect.top() + 52.0;
-        for page in Page::MAIN {
-            if self.nav_item(ui, rect, page, y, expanded, row_h) {
+        let mut y = rect.top() + 94.0;
+        for page in Page::MAIN.into_iter().chain(Page::BOTTOM) {
+            if self.nav_item(ui, rect, page, y, row_h) {
                 clicked = Some(page);
             }
             y += row_h;
         }
-        let mut y = rect.bottom() - 2.0 * row_h - 16.0;
-        for page in Page::BOTTOM {
-            if self.nav_item(ui, rect, page, y, expanded, row_h) {
-                clicked = Some(page);
-            }
-            y += row_h;
+        // the startup disk, always in view
+        if rect.bottom() - 84.0 > y {
+            let used = self.disk_total.saturating_sub(self.disk_free);
+            let frac = (used as f32 / self.disk_total as f32).clamp(0.0, 1.0);
+            let x = rect.left() + 20.0;
+            let w = rect.width() - 40.0;
+            let top = rect.bottom() - 76.0;
+            p.line_segment([Pos2::new(rect.left() + 12.0, top - 12.0), Pos2::new(rect.right() - 12.0, top - 12.0)], Stroke::new(1.0, LINE));
+            p.text(Pos2::new(x, top), Align2::LEFT_TOP, "Startup disk", FontId::proportional(13.0), TEXT);
+            p.text(Pos2::new(x + w, top), Align2::RIGHT_TOP, format!("{:.0}% used", frac * 100.0), FontId::proportional(13.0), MUTED);
+            let track = Rect::from_min_size(Pos2::new(x, top + 24.0), Vec2::new(w, 6.0));
+            p.rect_filled(track, 3.0, Color32::from_rgb(230, 232, 239));
+            let mut fill = track;
+            fill.set_width(track.width() * frac);
+            p.rect_filled(fill, 3.0, ACCENT);
+            p.text(Pos2::new(x, top + 38.0), Align2::LEFT_TOP, format!("{} free of {}", human(self.disk_free), human(self.disk_total)), FontId::proportional(12.5), MUTED);
         }
         if let Some(p) = clicked {
             if p == Page::Activity {
@@ -710,57 +727,59 @@ impl CleanerApp {
     // ------------------------------------------------------------------ shared screen parts
 
     pub fn header(&self, ui: &mut Ui, sub: &str) {
-        ui.horizontal(|ui| {
-            let (r, _) = ui.allocate_exact_size(Vec2::splat(46.0), Sense::hover());
-            ui.painter().rect_filled(r, 12.0, alpha(Color32::WHITE, 30));
-            art::glyph(ui.painter(), self.page.glyph(), r.shrink(10.0), Color32::WHITE);
-            ui.add_space(4.0);
-            ui.vertical(|ui| {
-                ui.label(RichText::new(self.page.name()).size(28.0).color(TEXT));
-                ui.label(RichText::new(sub).size(14.0).color(MUTED));
-            });
-        });
-        ui.add_space(14.0);
+        ui.label(RichText::new(self.page.name()).size(28.0).color(TEXT));
+        ui.label(RichText::new(sub).size(14.0).color(MUTED));
+        ui.add_space(12.0);
     }
 
-    /// The section's welcome screen: picture on the left, title and bullets on the right,
-    /// round button at the bottom. Returns true when the button was pressed.
+    /// The section's welcome screen: a tinted band with the title, a line of text and the
+    /// button on the left and the section's 3D object on the right, then what the section
+    /// covers in a plain row below. Returns true when the button was pressed.
     pub fn intro_screen(&mut self, ui: &mut Ui, button: &str, extra: Option<&mut dyn FnMut(&mut Ui, &mut Self)>) -> bool {
         let rect = ui.max_rect();
         let page = self.page;
         let info = page.intro();
         let p = ui.painter().clone();
-        let w = rect.width();
-        let h = rect.height();
-        let art_c = Pos2::new(rect.left() + w * 0.30, rect.top() + h * 0.45);
-        let art_r = (w * 0.17).min(h * 0.24);
-        art::hero(&p, page.outline(), page.glyph(), art_c, art_r, page.accent());
+        let band = Rect::from_min_max(rect.min, Pos2::new(rect.right(), rect.top() + (rect.height() - 84.0).max(260.0).min(rect.height())));
+        p.rect_filled(band, 20.0, page.tint());
+        let art_r = (band.height() * 0.27).min(band.width() * 0.15);
+        let art_c = Pos2::new(band.right() - band.width() * 0.23, band.center().y - art_r * 0.08);
+        art::hero(&p.with_clip_rect(band), page.outline(), page.glyph(), art_c, art_r, page.accent());
 
-        let x = rect.left() + w * 0.565;
-        let col_w = (rect.right() - x - 30.0).max(200.0);
-        let mut y = rect.top() + h * 0.22;
-        let title = p.layout_no_wrap(info.title.to_string(), FontId::proportional(54.0), Color32::WHITE);
+        let x = band.left() + 40.0;
+        let col_w = (band.width() * 0.50).min(480.0);
+        let title = p.layout(info.title.to_string(), FontId::proportional(44.0), TEXT, col_w);
+        let sub = p.layout(info.text.to_string(), FontId::proportional(16.5), BODY, col_w.min(430.0));
+        let total = title.size().y + 12.0 + sub.size().y + 26.0 + 48.0;
+        let mut y = band.center().y - total / 2.0;
         let th = title.size().y;
-        p.galley(Pos2::new(x, y), title, Color32::WHITE);
-        y += th + 18.0;
-        let sub = p.layout(info.text.to_string(), FontId::proportional(18.0), Color32::from_rgb(220, 210, 235), col_w.min(440.0));
+        p.galley(Pos2::new(x, y), title, TEXT);
+        y += th + 12.0;
         let sh = sub.size().y;
-        p.galley(Pos2::new(x, y), sub, Color32::WHITE);
-        y += sh + 40.0;
-        for (g, label) in info.bullets {
-            let r = Rect::from_min_size(Pos2::new(x, y), Vec2::splat(30.0));
-            p.rect_filled(r, 9.0, mix(page.accent(), Color32::WHITE, 0.25));
-            p.rect_filled(Rect::from_min_max(r.min, Pos2::new(r.right(), r.center().y)), egui::CornerRadius { nw: 9, ne: 9, sw: 0, se: 0 }, alpha(Color32::WHITE, 30));
-            art::glyph(&p, *g, r.shrink(6.5), Color32::WHITE);
-            p.text(Pos2::new(x + 48.0, r.center().y), Align2::LEFT_CENTER, *label, FontId::proportional(18.0), Color32::WHITE);
-            y += 52.0;
-        }
+        p.galley(Pos2::new(x, y), sub, BODY);
+        y += sh + 26.0;
+        let brect = Rect::from_min_size(Pos2::new(x, y), Vec2::new(primary_width(button), 48.0));
+        let go = primary_at(ui, brect, button);
         if let Some(extra) = extra {
-            let r = Rect::from_min_size(Pos2::new(x, y + 24.0), Vec2::new(col_w.min(260.0), 44.0));
+            let r = Rect::from_min_size(Pos2::new(brect.right() + 14.0, y + 2.0), Vec2::new(250.0, 44.0));
             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(r).layout(Layout::left_to_right(Align::Center)));
             extra(&mut child, self);
         }
-        round_button(ui, button, page.accent())
+
+        // what this section covers
+        let top = band.bottom() + 16.0;
+        let panel = Rect::from_min_max(Pos2::new(rect.left(), top), Pos2::new(rect.right(), (top + 68.0).min(rect.bottom())));
+        if !info.bullets.is_empty() && panel.height() > 40.0 {
+            p.rect_filled(panel, 14.0, Color32::WHITE);
+            p.rect_stroke(panel, 14.0, Stroke::new(1.0, LINE), egui::StrokeKind::Inside);
+            let cw = panel.width() / info.bullets.len() as f32;
+            for (i, (g, label)) in info.bullets.iter().enumerate() {
+                let cx = panel.left() + cw * i as f32 + 22.0;
+                art::glyph(&p, *g, Rect::from_center_size(Pos2::new(cx + 10.0, panel.center().y), Vec2::splat(20.0)), ACCENT);
+                p.text(Pos2::new(cx + 32.0, panel.center().y), Align2::LEFT_CENTER, *label, FontId::proportional(15.0), TEXT);
+            }
+        }
+        go
     }
 
     pub fn working(&self, ui: &mut Ui, title: &str, status: &str) -> bool {
@@ -773,9 +792,9 @@ impl CleanerApp {
         art::hero(&p, page.outline(), page.glyph(), c + Vec2::new(0.0, (t * 2.0).sin() * 6.0), r, page.accent());
         for i in 0..3 {
             let a = t * 2.2 + i as f32 * 2.1;
-            p.circle_filled(c + Vec2::angled(a) * r * 1.45, 5.0, alpha(Color32::WHITE, 160));
+            p.circle_filled(c + Vec2::angled(a) * r * 1.45, 5.0, alpha(page.accent(), 170));
         }
-        p.text(Pos2::new(rect.center().x, rect.top() + 40.0), Align2::CENTER_TOP, title, FontId::proportional(40.0), Color32::WHITE);
+        p.text(Pos2::new(rect.center().x, rect.top() + 40.0), Align2::CENTER_TOP, title, FontId::proportional(36.0), TEXT);
         p.text(Pos2::new(rect.center().x, c.y + r * 1.9), Align2::CENTER_CENTER, elide(status, 90), FontId::proportional(15.0), MUTED);
         ui.ctx().request_repaint();
         round_button(ui, "Stop", page.accent())
@@ -888,6 +907,8 @@ impl CleanerApp {
         }
         let home = scan::home();
         match self.page {
+            Page::Smart => self.smart_job = Some(crate::pages::start_smart()),
+            Page::Apps => self.apps_job = Some(Job::spawn(scan::scan_apps)),
             Page::Cleanup => self.junk_job = Some(Job::spawn(scan::scan_junk)),
             Page::Clutter => self.start_clutter(),
             Page::Space => self.space_job = Some(Job::spawn(move |p| scan::scan_space(home, p))),
@@ -960,15 +981,10 @@ impl eframe::App for CleanerApp {
             ctx.request_repaint_after(Duration::from_secs(2));
         }
 
-        // whole-window colour background
-        let full = ui.max_rect();
-        let [tl, tr, bl, br] = self.page.bg();
-        gradient(ui.painter(), full, tl, tr, bl, br);
-        let glow_p = ui.painter().with_clip_rect(full);
-        glow(&glow_p, Pos2::new(full.left() + full.width() * 0.35, full.top() + full.height() * 0.45), full.height() * 0.45, mix(tl, Color32::WHITE, 0.15));
-        glow(&glow_p, Pos2::new(full.center().x, full.bottom()), full.height() * 0.25, mix(self.page.accent(), Color32::WHITE, 0.2));
+        // one calm ground for every screen
+        ui.painter().rect_filled(ui.max_rect(), 0.0, GROUND);
 
-        let side_w = if self.sidebar_expanded() { 250.0 } else { 92.0 };
+        let side_w = 220.0;
         egui::Panel::left("sidebar")
             .exact_size(side_w)
             .resizable(false)
@@ -995,17 +1011,16 @@ impl eframe::App for CleanerApp {
             }
             if let Some(j) = &self.action_job {
                 let r = Rect::from_center_size(Pos2::new(rect.center().x, rect.bottom() - 30.0), Vec2::new(rect.width() * 0.6, 32.0));
-                ui.painter().rect_filled(r, 16.0, alpha(Color32::BLACK, 170));
-                ui.painter().text(r.center(), Align2::CENTER_CENTER, elide(&j.status(), 80), FontId::proportional(12.5), TEXT);
+                ui.painter().rect_filled(r, 16.0, alpha(TEXT, 230));
+                ui.painter().text(r.center(), Align2::CENTER_CENTER, elide(&j.status(), 80), FontId::proportional(12.5), Color32::WHITE);
             }
             if let Some((msg, t)) = &self.toast {
                 if t.elapsed() < Duration::from_secs(6) {
-                    let galley = ui.painter().layout_no_wrap(msg.clone(), FontId::proportional(13.0), TEXT);
+                    let galley = ui.painter().layout_no_wrap(msg.clone(), FontId::proportional(13.0), Color32::WHITE);
                     let w = galley.size().x + 32.0;
                     let r = Rect::from_center_size(Pos2::new(rect.center().x, rect.bottom() - 30.0), Vec2::new(w, 32.0));
-                    ui.painter().rect_filled(r, 16.0, Color32::from_rgb(40, 30, 64));
-                    ui.painter().rect_stroke(r, 16.0, Stroke::new(1.0, alpha(Color32::WHITE, 40)), egui::StrokeKind::Inside);
-                    ui.painter().galley(Pos2::new(r.left() + 16.0, r.center().y - galley.size().y / 2.0), galley, TEXT);
+                    ui.painter().rect_filled(r, 16.0, TEXT);
+                    ui.painter().galley(Pos2::new(r.left() + 16.0, r.center().y - galley.size().y / 2.0), galley, Color32::WHITE);
                     ctx.request_repaint_after(Duration::from_millis(500));
                 } else {
                     self.toast = None;

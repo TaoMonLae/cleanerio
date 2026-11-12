@@ -92,9 +92,18 @@ keychain profile is set up. See the notes at the top of the script.
 
 Built with [egui](https://github.com/emilk/egui).
 
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; it lists the safety
+rules the app must keep. Everyone taking part is expected to follow the
+[Code of Conduct](CODE_OF_CONDUCT.md). Report security problems as described in
+[SECURITY.md](SECURITY.md).
+
 ## License
 
-Cleanerio is proprietary software. Copyright (c) 2026 Min Htet Min Aung. All rights reserved.
+Cleanerio is free software under the [MIT License](LICENSE). Copyright (c) 2026 Min Htet Min Aung.
+You may use, copy, change and share it, including commercially, as long as the copyright and
+license notice stay with it.
 
-You may download and run the official app and read the source for reference. Copying,
-modifying or redistributing it needs written permission. See [LICENSE](LICENSE).
+The crates and fonts it is built with keep their own licenses, listed in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

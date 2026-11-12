@@ -121,7 +121,7 @@ pub fn glyph(painter: &Painter, g: Glyph, rect: Rect, color: Color32) {
         Glyph::Mail => {
             let r = Rect::from_min_max(at(3.0, 6.0), at(21.0, 18.0));
             painter.rect_filled(r, 2.0 * u, color);
-            painter.add(Shape::line(vec![at(4.0, 7.0), at(12.0, 13.0), at(20.0, 7.0)], Stroke::new(1.6 * u, alpha(Color32::BLACK, 90))));
+            painter.add(Shape::line(vec![at(4.0, 7.0), at(12.0, 13.0), at(20.0, 7.0)], Stroke::new(1.6 * u, Color32::WHITE)));
         }
         Glyph::Wrench => {
             painter.line_segment([at(6.0, 18.0), at(14.0, 10.0)], Stroke::new(3.2 * u, color));
@@ -291,16 +291,11 @@ fn fill_gradient(painter: &Painter, pts: &[Pos2], top: Color32, bottom: Color32)
 
 /// A glassy 3D tile with a symbol on it.
 pub fn hero(painter: &Painter, outline: Outline, g: Glyph, c: Pos2, r: f32, base: Color32) {
-    // soft light behind
-    for i in 0..30 {
-        let t = i as f32 / 30.0;
-        painter.circle_filled(c, r * (1.9 - 0.9 * t), alpha(mix(base, Color32::WHITE, 0.35), (1.0 + 2.0 * t) as u8));
-    }
-    // shadow and thickness
-    let shadow = outline_points(outline, c + Vec2::new(0.0, r * 0.16), r * 1.0);
-    fill_gradient(painter, &shadow, alpha(Color32::BLACK, 40), alpha(Color32::BLACK, 90));
-    let side = outline_points(outline, c + Vec2::new(0.0, r * 0.08), r);
-    fill_gradient(painter, &side, mix(base, Color32::BLACK, 0.35), mix(base, Color32::BLACK, 0.6));
+    // ground shadow and thickness
+    let shadow = outline_points(outline, c + Vec2::new(0.0, r * 0.22), r * 0.96);
+    fill_gradient(painter, &shadow, alpha(Color32::from_rgb(40, 30, 90), 26), alpha(Color32::from_rgb(40, 30, 90), 46));
+    let side = outline_points(outline, c + Vec2::new(0.0, r * 0.10), r);
+    fill_gradient(painter, &side, mix(base, Color32::BLACK, 0.30), mix(base, Color32::BLACK, 0.45));
     // top face
     let face = outline_points(outline, c, r);
     fill_gradient(painter, &face, mix(base, Color32::WHITE, 0.45), mix(base, Color32::BLACK, 0.25));
@@ -358,4 +353,16 @@ pub fn panel(painter: &Painter, rect: Rect, radius: f32, top: Color32, bottom: C
     }
     painter.add(Shape::mesh(mesh));
     painter.rect_stroke(rect, radius, stroke, egui::StrokeKind::Inside);
+}
+
+/// The app's mark: a ring with a gap and the piece that was cleared away, on a raised tile.
+pub fn brand_mark(painter: &Painter, rect: Rect) {
+    let rad = rect.height() * 0.28;
+    painter.rect_filled(rect.translate(Vec2::new(0.0, rect.height() * 0.09)), rad, Color32::from_rgb(61, 34, 166));
+    painter.rect_filled(rect, rad, Color32::from_rgb(91, 56, 214));
+    let c = rect.center();
+    let r = rect.width() * 0.25;
+    let pts: Vec<Pos2> = (0..=48).map(|i| c + Vec2::angled((-5.0 + 280.0 * i as f32 / 48.0).to_radians()) * r).collect();
+    painter.add(Shape::line(pts, Stroke::new(rect.width() * 0.11, Color32::WHITE)));
+    painter.circle_filled(c + Vec2::angled((-45.0f32).to_radians()) * r, rect.width() * 0.06, Color32::from_rgb(111, 242, 196));
 }

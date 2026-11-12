@@ -2,7 +2,10 @@
 name = "cleanerio"
 version = "0.1.0"
 edition = "2024"
-license-file = "LICENSE"
+license = "MIT"
+description = "A Mac cleaner that only ever moves things to the Trash"
+repository = "https://github.com/TaoMonLae/cleanerio"
+readme = "README.md"
 publish = false
 
 [dependencies]
