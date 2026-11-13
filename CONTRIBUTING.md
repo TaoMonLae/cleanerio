@@ -20,7 +20,7 @@ Do not submit code, icons or screenshots copied from other cleaner apps.
 
 ## Getting set up
 
-You need a Mac or a Linux desktop, and a recent Rust toolchain (<https://rustup.rs>).
+You need a Mac, a Linux desktop or a Windows PC, and a recent Rust toolchain (<https://rustup.rs>).
 
 ```sh
 git clone https://github.com/TaoMonLae/cleanerio.git
@@ -29,7 +29,7 @@ cargo run            # start the app
 cargo test           # run the tests
 ```
 
-`./package_mac.sh` builds the `.app` and the disk image; `./package_linux.sh` builds the Linux packages. Signing needs your
+`./package_mac.sh` builds the `.app` and the disk image; `./package_linux.sh` builds the Linux packages and `.\package_windows.ps1` the Windows ones. Signing needs your
 own Developer ID; without one the script still builds an unsigned app.
 
 ## Rules the app must keep
@@ -51,7 +51,7 @@ gets scanned or removed needs a test in `src/scan.rs`.
 - Run `cargo fmt`, `cargo build` (no new warnings) and `cargo test` first.
 - For interface changes, attach before and after screenshots.
 - Say what you tested and on which macOS version or Linux distribution.
-- Mac-only and Linux-only behaviour is chosen at run time (`linux::ON`), so both sides
+- Mac-only and Linux-only behaviour is chosen at run time (`linux::ON`, `windows::ON`), so both sides
   compile everywhere. Keep it that way: a change must build on both systems.
 
 ## Reporting bugs

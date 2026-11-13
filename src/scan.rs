@@ -2,6 +2,7 @@
 //! Nothing here deletes anything; removal always goes through the Trash (see `trash_paths`).
 
 use std::collections::HashSet;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -87,9 +88,68 @@ pub fn home() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"))
 }
 
+/// The top of the disk the home folder is on: "/" on a Mac or Linux, "C:\\" on Windows.
+pub fn disk_root() -> PathBuf {
+    home().ancestors().last().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("/"))
+}
+
 /// Space a file really takes on disk.
+#[cfg(unix)]
 fn alloc_size(md: &std::fs::Metadata) -> u64 {
     md.blocks() * 512
+}
+/// On Windows a cloud file that isn't downloaded takes no room; anything else counts in full.
+#[cfg(windows)]
+fn alloc_size(md: &std::fs::Metadata) -> u64 {
+    if stored_locally(md) { md.len() } else { 0 }
+}
+
+/// False for a cloud file whose contents are not on this disk.
+#[cfg(unix)]
+pub fn stored_locally(md: &std::fs::Metadata) -> bool {
+    md.blocks() > 0
+}
+#[cfg(windows)]
+pub fn stored_locally(md: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    // FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_RECALL_ON_OPEN | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
+    md.file_attributes() & (0x1000 | 0x0004_0000 | 0x0040_0000) == 0
+}
+
+/// The account that owns a file (always 0 on Windows, where it isn't needed).
+#[cfg(unix)]
+pub fn owner_id(md: &std::fs::Metadata) -> u32 {
+    md.uid()
+}
+#[cfg(windows)]
+pub fn owner_id(_md: &std::fs::Metadata) -> u32 {
+    0
+}
+
+/// Two names for one file (hard links) give the same key. Windows has no cheap way to tell,
+/// so there every path gets its own key.
+#[cfg(unix)]
+fn file_key(md: &std::fs::Metadata, _path: &Path) -> (u64, u64) {
+    (md.dev(), md.ino())
+}
+#[cfg(windows)]
+fn file_key(_md: &std::fs::Metadata, path: &Path) -> (u64, u64) {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut h);
+    (0, h.finish())
+}
+
+/// A command that doesn't flash a console window on Windows.
+#[allow(unused_mut)]
+pub fn quiet(program: &str) -> std::process::Command {
+    let mut c = std::process::Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    c
 }
 
 /// Total size of a file or folder, without following links.
@@ -158,6 +218,9 @@ pub fn is_protected(path: &Path) -> bool {
         return true;
     }
     if crate::linux::ON && crate::linux::is_protected(path) {
+        return true;
+    }
+    if crate::windows::ON && crate::windows::is_protected(path) {
         return true;
     }
     const SYSTEM: &[&str] = &["/System", "/usr", "/bin", "/sbin"];
@@ -232,7 +295,7 @@ fn idle_days(path: &Path, md: Option<&std::fs::Metadata>) -> u64 {
 
 /// Bundle ids (lower case) of the apps that are running now.
 pub fn running_bundle_ids() -> HashSet<String> {
-    if crate::linux::ON {
+    if crate::linux::ON || crate::windows::ON {
         return crate::linux::running_names();
     }
     let mut ids = HashSet::new();
@@ -294,7 +357,7 @@ fn unload_agent(label: &str) {
         return;
     }
     if let Ok(md) = std::fs::metadata(home()) {
-        let _ = std::process::Command::new("launchctl").arg("bootout").arg(format!("gui/{}/{label}", md.uid())).output();
+        let _ = std::process::Command::new("launchctl").arg("bootout").arg(format!("gui/{}/{label}", owner_id(&md))).output();
     }
 }
 
@@ -304,6 +367,9 @@ fn unload_agent(label: &str) {
 pub fn heavy_apps() -> Vec<(sysinfo::Pid, String, u64, f32)> {
     if crate::linux::ON {
         return crate::linux::heavy_apps();
+    }
+    if crate::windows::ON {
+        return crate::windows::heavy_apps();
     }
     let Ok(mut sys) = sysinfo::System::new() else { return vec![] };
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
@@ -326,6 +392,10 @@ pub fn heavy_apps() -> Vec<(sysinfo::Pid, String, u64, f32)> {
 
 /// Asks a program to close (the polite signal; it can save its work first).
 pub fn ask_to_quit(pid: u32) {
+    if crate::windows::ON {
+        crate::windows::ask_to_quit(pid);
+        return;
+    }
     let _ = std::process::Command::new("kill").arg("-TERM").arg(pid.to_string()).output();
 }
 
@@ -399,7 +469,7 @@ fn junk_items(dirs: &[PathBuf], filter: impl Fn(&Path) -> bool, on: bool, p: &Pr
     }
     out.sort_by(|a, b| b.size.cmp(&a.size));
     let note = blocked.then(|| {
-        if crate::linux::ON {
+        if crate::linux::ON || crate::windows::ON {
             "Your account isn't allowed to read this folder, so it was left out.".to_string()
         } else {
             "macOS didn't let us look here. Give this app Full Disk Access in System Settings › Privacy & Security to include it.".to_string()
@@ -503,6 +573,9 @@ fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
 pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
     if crate::linux::ON {
         return scan_junk_linux(p);
+    }
+    if crate::windows::ON {
+        return crate::windows::scan_junk(p);
     }
     let h = home();
     let mut groups = vec![];
@@ -665,10 +738,11 @@ pub fn judge(label: &str, program: &str, file: &str) -> (Verdict, String) {
         let pp = Path::new(program);
         let temp = ["/tmp", "/private/tmp", "/Users/Shared"];
         let temp_linux = ["/var/tmp", "/dev/shm"];
-        if temp.iter().any(|t| program.starts_with(t)) || (crate::linux::ON && temp_linux.iter().any(|t| program.starts_with(t))) {
+        let temp_windows = program.to_lowercase().replace('\\', "/").contains("/temp/");
+        if temp.iter().any(|t| program.starts_with(t)) || (crate::linux::ON && temp_linux.iter().any(|t| program.starts_with(t))) || (crate::windows::ON && temp_windows) {
             return (Verdict::Review, "Runs a program from a shared or temporary folder".into());
         }
-        if !crate::linux::ON && pp.components().any(|c| {
+        if !crate::linux::ON && !crate::windows::ON && pp.components().any(|c| {
             let s = c.as_os_str().to_string_lossy();
             s.starts_with('.') && s.len() > 1 && s != ".."
         }) {
@@ -759,6 +833,9 @@ pub fn scan_apps(p: &Progress) -> Vec<AppInfo> {
     if crate::linux::ON {
         return crate::linux::scan_apps(p);
     }
+    if crate::windows::ON {
+        return crate::windows::scan_apps(p);
+    }
     let h = home();
     let lib: Vec<PathBuf> = LEFTOVER_DIRS.iter().flat_map(|d| children(&h.join(d))).collect();
     let mut bundles = vec![];
@@ -819,7 +896,7 @@ pub fn kind_of(p: &Path) -> String {
         "mp3" | "m4a" | "wav" | "aiff" | "flac" | "aac" => "Audio",
         "jpg" | "jpeg" | "png" | "heic" | "tiff" | "gif" | "raw" | "psd" => "Picture",
         "zip" | "rar" | "7z" | "tar" | "gz" | "xz" | "tgz" => "Archive",
-        "dmg" | "pkg" | "iso" | "xip" | "deb" | "rpm" | "appimage" => "Installer",
+        "dmg" | "pkg" | "iso" | "xip" | "deb" | "rpm" | "appimage" | "msi" | "msix" => "Installer",
         "pdf" | "doc" | "docx" | "pages" | "key" | "ppt" | "pptx" | "xls" | "xlsx" | "numbers" => "Document",
         "app" => "App",
         _ => "Other",
@@ -829,7 +906,7 @@ pub fn kind_of(p: &Path) -> String {
 
 pub fn scan_big(root: PathBuf, min_bytes: u64, p: &Progress) -> Vec<BigFile> {
     let h = home();
-    let skip: HashSet<PathBuf> = [h.join("Library"), trash_dir()].into_iter().collect();
+    let skip: HashSet<PathBuf> = [h.join("Library"), h.join("AppData"), trash_dir()].into_iter().collect();
     let mut out = vec![];
     let mut stack = vec![root];
     let mut n = 0u64;
@@ -950,7 +1027,13 @@ pub fn trash_paths(paths: Vec<(PathBuf, u64)>, p: &Progress) -> ActionReport {
     let mut r = ActionReport::default();
     let mut todo: Vec<(PathBuf, u64, Option<String>)> = vec![];
     for (path, size) in paths {
-        if is_protected(&path) {
+        if let Some((key, name)) = crate::windows::registry_entry(&path).filter(|_| crate::windows::ON) {
+            // a startup entry kept in the Windows registry: there is no file to move
+            match crate::windows::remove_registry_entry(&key, &name) {
+                Ok(()) => r.removed.push(path),
+                Err(e) => r.failed.push((path, e)),
+            }
+        } else if is_protected(&path) {
             r.failed.push((path, "protected folder".into()));
         } else if std::fs::symlink_metadata(&path).is_err() {
             r.removed.push(path); // already gone
@@ -968,7 +1051,7 @@ pub fn trash_paths(paths: Vec<(PathBuf, u64)>, p: &Progress) -> ActionReport {
     };
     // All together first: one request to the Finder instead of one per file.
     if todo.len() > 1 {
-        p.set(format!("Moving {} items to the Trash…", todo.len()));
+        p.set(words(&format!("Moving {} items to the Trash…", todo.len())));
         if trash::delete_all(todo.iter().map(|t| &t.0)).is_ok() {
             for (path, size, agent) in todo {
                 done(&mut r, path, size, agent);
@@ -979,7 +1062,7 @@ pub fn trash_paths(paths: Vec<(PathBuf, u64)>, p: &Progress) -> ActionReport {
     // One by one, so a single failure doesn't stop the rest.
     let n = todo.len();
     for (i, (path, size, agent)) in todo.into_iter().enumerate() {
-        p.set(format!("Moving to Trash ({}/{n}) {}", i + 1, file_name(&path)));
+        p.set(words(&format!("Moving to Trash ({}/{n}) {}", i + 1, file_name(&path))));
         if std::fs::symlink_metadata(&path).is_err() {
             done(&mut r, path, size, agent); // the attempt above already moved it
             continue;
@@ -993,18 +1076,19 @@ pub fn trash_paths(paths: Vec<(PathBuf, u64)>, p: &Progress) -> ActionReport {
 }
 
 pub fn empty_trash(p: &Progress, size: u64) -> ActionReport {
-    p.set("Emptying the Trash…");
+    p.set(words("Emptying the Trash…"));
     // list what is in the Trash first: afterwards there is nothing left to list
     let before = children(&trash_dir());
     let _ = size; // already counted when the files were moved to the Trash
-    if crate::linux::ON {
+    if crate::linux::ON || crate::windows::ON {
         let mut r = ActionReport::default();
-        match crate::linux::empty_trash() {
+        let emptied = if crate::windows::ON { crate::windows::empty_recycle_bin() } else { crate::linux::empty_trash() };
+        match emptied {
             Ok(()) => {
                 r.removed = before;
-                r.message = "The Trash is empty.".into();
+                r.message = words("The Trash is empty.");
             }
-            Err(e) => r.message = format!("Couldn't empty the Trash: {e}"),
+            Err(e) => r.message = words(&format!("Couldn't empty the Trash: {e}")),
         }
         return r;
     }
@@ -1039,6 +1123,9 @@ pub fn tasks() -> Vec<Task> {
     if crate::linux::ON {
         return crate::linux::tasks();
     }
+    if crate::windows::ON {
+        return crate::windows::tasks();
+    }
     vec![
         Task { title: "Free up memory", desc: "Rarely needed: macOS manages memory well on its own.", icon: "🧠", admin: true, cmd: "purge", selected: false, last: None },
         Task { title: "Flush DNS cache", desc: "Fixes websites that won't load after network changes.", icon: "🌐", admin: true, cmd: "dscacheutil -flushcache; killall -HUP mDNSResponder", selected: false, last: None },
@@ -1057,7 +1144,9 @@ pub fn run_tasks(cmds: Vec<(usize, bool, String)>, p: &Progress) -> Vec<(usize, 
     if !admin.is_empty() {
         p.set("Waiting for your password…");
         let joined = admin.iter().map(|c| c.2.clone()).collect::<Vec<_>>().join("; ");
-        let msg = if crate::linux::ON {
+        let msg = if crate::windows::ON {
+            crate::windows::run_admin(&admin.iter().map(|c| c.2.clone()).collect::<Vec<_>>())
+        } else if crate::linux::ON {
             crate::linux::run_admin(&joined)
         } else {
             let script = format!("do shell script \"{}\" with administrator privileges", joined.replace('"', "\\\""));
@@ -1076,7 +1165,7 @@ pub fn run_tasks(cmds: Vec<(usize, bool, String)>, p: &Progress) -> Vec<(usize, 
     }
     for c in cmds.iter().filter(|c| !c.1) {
         p.set(format!("Running task {}…", c.0 + 1));
-        let out = std::process::Command::new("sh").args(["-c", &c.2]).output();
+        let out = if crate::windows::ON { crate::windows::run_plain(&c.2) } else { std::process::Command::new("sh").args(["-c", &c.2]).output() };
         let msg = match out {
             Ok(o) if o.status.success() => "Done".to_string(),
             Ok(o) => format!("Finished with a warning: {}", String::from_utf8_lossy(&o.stderr).lines().next().unwrap_or("")),
@@ -1168,7 +1257,7 @@ fn same_bytes(a: &Path, b: &Path) -> bool {
 /// finally byte for byte. Two names for one file (hard links) count once.
 pub fn scan_duplicates(root: PathBuf, p: &Progress) -> Vec<DupGroup> {
     let mut by_size: std::collections::HashMap<u64, Vec<PathBuf>> = Default::default();
-    let skip: HashSet<PathBuf> = [home().join("Library"), trash_dir()].into_iter().collect();
+    let skip: HashSet<PathBuf> = [home().join("Library"), home().join("AppData"), trash_dir()].into_iter().collect();
     let mut stack = vec![root];
     let mut n = 0u64;
     let mut seen_files: HashSet<(u64, u64)> = HashSet::new();
@@ -1189,7 +1278,10 @@ pub fn scan_duplicates(root: PathBuf, p: &Progress) -> Vec<DupGroup> {
                     stack.push(path);
                 }
             } else if md.len() >= 512 * 1024 {
-                if !seen_files.insert((md.dev(), md.ino())) {
+                if !stored_locally(&md) {
+                    continue; // a cloud file that isn't downloaded: reading it would fetch it
+                }
+                if !seen_files.insert(file_key(&md, &path)) {
                     continue; // another name for a file already listed
                 }
                 n += 1;
@@ -1283,6 +1375,9 @@ pub fn scan_cloud(p: &Progress) -> Vec<CloudFolder> {
     if crate::linux::ON {
         roots.extend(crate::linux::cloud_roots().into_iter().map(|(name, path)| (name, path, false)));
     }
+    if crate::windows::ON {
+        roots.extend(crate::windows::cloud_roots().into_iter().map(|(name, path)| (name, path, false)));
+    }
     let icloud = h.join("Library/Mobile Documents/com~apple~CloudDocs");
     if icloud.exists() {
         roots.push(("iCloud Drive".to_string(), icloud, true));
@@ -1300,7 +1395,7 @@ pub fn scan_cloud(p: &Progress) -> Vec<CloudFolder> {
         let local = dir_size(&path, Some(p));
         let mut files = scan_big(path.clone(), 20_000_000, p);
         // only files actually stored on this Mac
-        files.retain(|f| std::fs::metadata(&f.path).map(|m| m.blocks() > 0).unwrap_or(false));
+        files.retain(|f| std::fs::metadata(&f.path).map(|m| stored_locally(&m)).unwrap_or(false));
         files.truncate(60);
         out.push(CloudFolder { name, path, local, icloud: is_icloud, files });
     }
@@ -1331,6 +1426,9 @@ pub fn login_items() -> Result<Vec<String>, String> {
     if crate::linux::ON {
         return crate::linux::login_items();
     }
+    if crate::windows::ON {
+        return crate::windows::login_items();
+    }
     let out = std::process::Command::new("osascript")
         .args([
             "-e",
@@ -1353,6 +1451,9 @@ pub fn remove_login_item(name: &str) -> Result<(), String> {
     if crate::linux::ON {
         return crate::linux::remove_login_item(name);
     }
+    if crate::windows::ON {
+        return crate::windows::remove_login_item(name);
+    }
     let script = format!("tell application \"System Events\" to delete login item \"{}\"", name.replace('"', ""));
     let out = std::process::Command::new("osascript").args(["-e", &script]).output().map_err(|e| e.to_string())?;
     if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
@@ -1366,8 +1467,8 @@ pub struct AppsSummary {
 }
 
 pub fn apps_summary() -> AppsSummary {
-    if crate::linux::ON {
-        let (total, unused) = crate::linux::apps_summary();
+    if crate::linux::ON || crate::windows::ON {
+        let (total, unused) = if crate::windows::ON { crate::windows::apps_summary() } else { crate::linux::apps_summary() };
         return AppsSummary { total, unused };
     }
     let mut total = 0;
@@ -1395,22 +1496,57 @@ pub fn clutter_roots() -> Vec<PathBuf> {
 
 /// Where Cleanerio keeps its own small files (the activity history, a threat database).
 pub fn app_data_dir() -> PathBuf {
-    if crate::linux::ON { crate::linux::data_home().join("Cleanerio") } else { home().join("Library/Application Support/Cleanerio") }
+    if crate::windows::ON {
+        crate::windows::roaming().join("Cleanerio")
+    } else if crate::linux::ON {
+        crate::linux::data_home().join("Cleanerio")
+    } else {
+        home().join("Library/Application Support/Cleanerio")
+    }
 }
 
 /// The folder trashed files wait in.
 pub fn trash_dir() -> PathBuf {
-    if crate::linux::ON { crate::linux::trash_dir() } else { home().join(".Trash") }
+    if crate::windows::ON {
+        // the Recycle Bin is not one folder; this path is never listed (see `trash_size`)
+        home().join("$Recycle.Bin")
+    } else if crate::linux::ON {
+        crate::linux::trash_dir()
+    } else {
+        home().join(".Trash")
+    }
+}
+
+/// Bytes waiting in the Trash.
+pub fn trash_size() -> u64 {
+    if crate::windows::ON { crate::windows::recycle_bin_size() } else { dir_size(&trash_dir(), None) }
+}
+
+/// Text for the interface with the system's own name for the Trash.
+pub fn words(text: &str) -> String {
+    if crate::windows::ON { text.replace("Trash", "Recycle Bin") } else { text.to_string() }
 }
 
 /// What to call the machine in the interface.
 pub fn computer() -> &'static str {
-    if crate::linux::ON { "computer" } else { "Mac" }
+    if crate::windows::ON {
+        "PC"
+    } else if crate::linux::ON {
+        "computer"
+    } else {
+        "Mac"
+    }
 }
 
 /// The label of the "show this file" buttons.
 pub fn show_in_files() -> &'static str {
-    if crate::linux::ON { "Show in Files" } else { "Show in Finder" }
+    if crate::windows::ON {
+        "Show in Explorer"
+    } else if crate::linux::ON {
+        "Show in Files"
+    } else {
+        "Show in Finder"
+    }
 }
 
 fn activity_file() -> PathBuf {
@@ -1580,6 +1716,9 @@ pub fn battery() -> Option<(u8, String)> {
     if crate::linux::ON {
         return crate::linux::battery();
     }
+    if crate::windows::ON {
+        return crate::windows::battery();
+    }
     let out = std::process::Command::new("pmset").args(["-g", "batt"]).output().ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     let line = s.lines().find(|l| l.contains("InternalBattery"))?;
@@ -1598,6 +1737,9 @@ pub fn battery() -> Option<(u8, String)> {
 pub fn wifi_name() -> Option<String> {
     if crate::linux::ON {
         return crate::linux::wifi_name();
+    }
+    if crate::windows::ON {
+        return crate::windows::wifi_name();
     }
     let out = std::process::Command::new("ipconfig").args(["getsummary", "en0"]).output().ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();
@@ -1627,6 +1769,9 @@ pub const THREAT_SCAN_LOG: &str = "Ran threat scan";
 pub fn battery_condition() -> Option<String> {
     if crate::linux::ON {
         return crate::linux::battery_condition();
+    }
+    if crate::windows::ON {
+        return None;
     }
     let out = std::process::Command::new("system_profiler").arg("SPPowerDataType").output().ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();

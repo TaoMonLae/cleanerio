@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Rebuilds THIRD-PARTY-NOTICES.md from the crates that ship in the Mac and Linux builds.
+"""Rebuilds THIRD-PARTY-NOTICES.md from the crates that ship in the Mac, Linux and Windows builds.
 
 Run from the repository root:  python3 tools/notices.py
 """
 import json, subprocess
 
-TARGETS = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
+TARGETS = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 
 meta = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"]))
 by_id = {f"{p['name']} v{p['version']}": p for p in meta["packages"]}
@@ -24,7 +24,7 @@ lines = [
     "# Third-party notices",
     "",
     "Cleanerio itself is released under the MIT License (see `LICENSE`).",
-    "The Mac and Linux builds also contain the open-source Rust crates listed below, each",
+    "The Mac, Linux and Windows builds also contain the open-source Rust crates listed below, each",
     "under its own license. Where a crate offers a choice of licenses, Cleanerio",
     "uses it under the MIT License, or under Apache-2.0 when MIT is not offered.",
     "The full text of each license is in the crate's repository, linked in the table.",

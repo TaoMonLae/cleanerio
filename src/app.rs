@@ -114,22 +114,22 @@ impl Page {
         match self {
             Page::Smart => Intro {
                 title: "Smart Scan",
-                text: if crate::linux::ON { "A quick checkup that tidies, protects and speeds up your computer in one go." } else { "A quick checkup that tidies, protects and speeds up your Mac in one go." },
+                text: if crate::linux::ON || crate::windows::ON { "A quick checkup that tidies, protects and speeds up your computer in one go." } else { "A quick checkup that tidies, protects and speeds up your Mac in one go." },
                 bullets: &[(Glyph::Bubble, "Junk Cleanup"), (Glyph::Shield, "Threat Check"), (Glyph::Bolt, "Speed Tune-up")],
             },
             Page::Cleanup => Intro {
                 title: "Cleanup",
                 text: "Clear out caches, logs and leftovers to win back free space.",
-                bullets: if crate::linux::ON { &[(Glyph::Trash, "Caches & Logs"), (Glyph::Download, "Old Installers"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")] } else { &[(Glyph::Trash, "System Junk"), (Glyph::Mail, "Mail Downloads"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")] },
+                bullets: if crate::linux::ON || crate::windows::ON { &[(Glyph::Trash, "Caches & Logs"), (Glyph::Download, "Old Installers"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")] } else { &[(Glyph::Trash, "System Junk"), (Glyph::Mail, "Mail Downloads"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")] },
             },
             Page::Protection => Intro {
                 title: "Protection",
-                text: if crate::linux::ON { "Check what starts by itself, your browser extensions and running programs for anything suspicious." } else { "Check your Mac against a database of Mac threats: trojans, adware, spyware and crypto miners." },
+                text: if crate::linux::ON || crate::windows::ON { "Check what starts by itself, your browser extensions and running programs for anything suspicious." } else { "Check your Mac against a database of Mac threats: trojans, adware, spyware and crypto miners." },
                 bullets: &[(Glyph::Bug, "Malware Removal"), (Glyph::Shield, "Suspicious Helpers"), (Glyph::Bolt, "Running Threats")],
             },
             Page::Performance => Intro {
                 title: "Performance",
-                text: if crate::linux::ON { "Keep your computer quick with regular maintenance and a tidy startup." } else { "Keep your Mac quick with regular maintenance and a tidy startup." },
+                text: if crate::linux::ON || crate::windows::ON { "Keep your computer quick with regular maintenance and a tidy startup." } else { "Keep your Mac quick with regular maintenance and a tidy startup." },
                 bullets: &[(Glyph::Wrench, "Maintenance Tasks"), (Glyph::Power, "Login Items"), (Glyph::Rocket, "Background Items")],
             },
             Page::Apps => Intro {
@@ -149,8 +149,8 @@ impl Page {
             },
             Page::Cloud => Intro {
                 title: "Cloud Files",
-                text: if crate::linux::ON { "See how much room your cloud folders take on this computer." } else { "See how much room your cloud folders take on this Mac and free it up." },
-                bullets: if crate::linux::ON { &[(Glyph::Cloud, "Dropbox, Nextcloud & more"), (Glyph::Folder, "Largest Synced Files")] } else { &[(Glyph::Cloud, "iCloud Drive"), (Glyph::Folder, "Other Cloud Folders"), (Glyph::Download, "Free Local Copies")] },
+                text: if crate::linux::ON || crate::windows::ON { "See how much room your cloud folders take on this computer." } else { "See how much room your cloud folders take on this Mac and free it up." },
+                bullets: if crate::linux::ON || crate::windows::ON { &[(Glyph::Cloud, "OneDrive, Dropbox & more"), (Glyph::Folder, "Largest Synced Files")] } else { &[(Glyph::Cloud, "iCloud Drive"), (Glyph::Folder, "Other Cloud Folders"), (Glyph::Download, "Free Local Copies")] },
             },
             Page::Tools | Page::Activity => Intro { title: "", text: "", bullets: &[] },
         }
@@ -414,14 +414,25 @@ impl CleanerApp {
             let d = disks
                 .iter()
                 .find(|d| d.mount_point() == std::path::Path::new("/System/Volumes/Data"))
-                .or_else(|| disks.iter().find(|d| d.mount_point() == std::path::Path::new("/")));
+                .or_else(|| disks.iter().find(|d| d.mount_point() == std::path::Path::new("/")))
+                // Windows ("C:\\") and Linux setups with their own home disk: the disk the home folder is on
+                .or_else(|| {
+                    let home = scan::home();
+                    disks.iter().filter(|d| home.starts_with(d.mount_point())).max_by_key(|d| d.mount_point().as_os_str().len())
+                });
             if let Some(d) = d {
                 self.disk_total = d.total_space().max(1);
                 self.disk_free = d.available_space();
             }
             self.externals = disks
                 .iter()
-                .filter(|d| d.mount_point().starts_with("/Volumes") && (d.is_removable() || d.total_space() > 0))
+                .filter(|d| {
+                    if crate::linux::ON || crate::windows::ON {
+                        d.is_removable() && d.total_space() > 0
+                    } else {
+                        d.mount_point().starts_with("/Volumes") && (d.is_removable() || d.total_space() > 0)
+                    }
+                })
                 .map(|d| (d.name().to_string_lossy().to_string(), d.available_space(), d.total_space()))
                 .collect();
         }
@@ -635,7 +646,7 @@ impl CleanerApp {
         let mut msg = if !r.message.is_empty() {
             r.message.clone()
         } else {
-            format!("Moved {} item(s) ({}) to the Trash · empty the Trash to free the space", r.removed.len(), human(r.freed))
+            scan::words(&format!("Moved {} item(s) ({}) to the Trash · empty the Trash to free the space", r.removed.len(), human(r.freed)))
         };
         if !r.failed.is_empty() {
             msg += &format!(" · {} couldn't be moved (they may need an administrator or be in use)", r.failed.len());
@@ -836,17 +847,17 @@ impl CleanerApp {
                     ui.label(RichText::new(title).size(18.0).strong());
                     let total: u64 = paths.iter().map(|p| p.1).sum();
                     ui.label(
-                        RichText::new(format!(
+                        RichText::new(scan::words(&format!(
                             "{} item(s){} will be moved to the Trash. You can put them back from the Trash if you change your mind.",
                             paths.len(),
                             if total > 0 { format!(" ({})", human(total)) } else { String::new() }
-                        ))
+                        )))
                         .color(MUTED),
                     );
                     list(ui, paths);
                 }
                 Pending::EmptyTrash { size } => {
-                    ui.label(RichText::new("Empty the Trash?").size(18.0).strong());
+                    ui.label(RichText::new(scan::words("Empty the Trash?")).size(18.0).strong());
                     ui.label(RichText::new(format!("This permanently erases {} and can't be undone.", human(*size))).color(MUTED));
                 }
                 Pending::Evict { paths } => {
@@ -887,7 +898,7 @@ impl CleanerApp {
                         self.action_job = Some(Job::spawn(move |p| scan::trash_paths(paths, p)));
                     }
                     Pending::EmptyTrash { size } => {
-                        self.action_label = "Emptied the Trash".into();
+                        self.action_label = scan::words("Emptied the Trash");
                         self.action_job = Some(Job::spawn(move |p| scan::empty_trash(p, size)));
                     }
                     Pending::Evict { paths } => {
@@ -1083,6 +1094,10 @@ mod tests {
 pub fn reveal(p: &std::path::Path) {
     if crate::linux::ON {
         crate::linux::reveal(p);
+        return;
+    }
+    if crate::windows::ON {
+        crate::windows::reveal(p);
         return;
     }
     let _ = std::process::Command::new("open").arg("-R").arg(p).spawn();

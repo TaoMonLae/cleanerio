@@ -5,7 +5,7 @@
 <h1 align="center">Cleanerio</h1>
 
 <p align="center">
-  A cleaner and maintenance app for Mac and Linux, written in Rust.<br>
+  A cleaner and maintenance app for Mac, Linux and Windows, written in Rust.<br>
   Find junk, large files, duplicates and unused apps, and see what fills your disk.
 </p>
 
@@ -85,6 +85,29 @@ What differs on Linux:
   startup entries that point at temporary folders or missing programs.
 - Maintenance tasks that need an administrator ask through your desktop's password window (`pkexec`).
 
+### Windows
+
+Pick one from the [releases page](https://github.com/TaoMonLae/cleanerio/releases):
+
+- **Installer:** run `Cleanerio-<version>-windows-x64-setup.exe`. It installs for your account
+  and needs no administrator.
+- **Portable:** unpack `Cleanerio-<version>-windows-x64.zip` anywhere and run `Cleanerio.exe`.
+
+Requires 64-bit Windows 10 or 11. The program is not signed yet, so Windows SmartScreen may
+show "Windows protected your PC" the first time; choose **More info**, then **Run anyway**.
+
+What differs on Windows:
+
+- Cleanup looks in your Temp folder (files untouched for a day), browser and graphics caches,
+  crash reports, package caches of coding tools, setup files in Downloads, and the Recycle Bin.
+  It stays inside your own profile; nothing under `C:\Windows` is touched.
+- Applications lists the programs Windows shows under Installed apps, with their size and the
+  folders they keep in your profile. Remove the program itself in Windows Settings.
+- Protection and Login Items read what starts at sign-in from the registry and the Startup
+  folder. Removing a registry entry deletes that entry (there is no file to put in the Recycle
+  Bin); the command it ran is noted in `%APPDATA%\Cleanerio\removed-startup-entries.txt`.
+- Maintenance tasks that need an administrator ask through the usual Windows permission window.
+
 ## Build from source
 
 Requires [Rust](https://rustup.rs).
@@ -113,6 +136,15 @@ On Linux, build the packages with:
 This produces a `.tar.gz` and a `.deb` in `dist/`, and an AppImage when `appimagetool` is
 installed. See the notes at the top of the script.
 
+On Windows, in PowerShell:
+
+```
+.\package_windows.ps1
+```
+
+This produces a `.zip` in `dist\`, and an installer when [Inno Setup](https://jrsoftware.org/isdl.php)
+is installed. You need the Visual Studio Build Tools with "Desktop development with C++".
+
 ## Project layout
 
 | Path | Contents |
@@ -120,7 +152,7 @@ installed. See the notes at the top of the script.
 | `src/scan.rs` | Everything that looks at the disk, and the Trash actions |
 | `src/threats.rs` | The threat check |
 | `src/pages.rs`, `src/app.rs` | The screens and the window |
-| `src/linux.rs` | The Linux counterparts of the Mac-only parts |
+| `src/linux.rs`, `src/windows.rs` | The Linux and Windows counterparts of the Mac-only parts |
 | `src/art.rs`, `src/ui_kit.rs` | Drawing helpers |
 | `assets/` | App icon and signing entitlements |
 | `MECHANICS.md` | The rules the app uses: sizes, ages, thresholds |
