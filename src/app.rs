@@ -114,22 +114,22 @@ impl Page {
         match self {
             Page::Smart => Intro {
                 title: "Smart Scan",
-                text: "A quick checkup that tidies, protects and speeds up your Mac in one go.",
+                text: if crate::linux::ON { "A quick checkup that tidies, protects and speeds up your computer in one go." } else { "A quick checkup that tidies, protects and speeds up your Mac in one go." },
                 bullets: &[(Glyph::Bubble, "Junk Cleanup"), (Glyph::Shield, "Threat Check"), (Glyph::Bolt, "Speed Tune-up")],
             },
             Page::Cleanup => Intro {
                 title: "Cleanup",
                 text: "Clear out caches, logs and leftovers to win back free space.",
-                bullets: &[(Glyph::Trash, "System Junk"), (Glyph::Mail, "Mail Downloads"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")],
+                bullets: if crate::linux::ON { &[(Glyph::Trash, "Caches & Logs"), (Glyph::Download, "Old Installers"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")] } else { &[(Glyph::Trash, "System Junk"), (Glyph::Mail, "Mail Downloads"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")] },
             },
             Page::Protection => Intro {
                 title: "Protection",
-                text: "Check your Mac against a database of Mac threats: trojans, adware, spyware and crypto miners.",
+                text: if crate::linux::ON { "Check what starts by itself, your browser extensions and running programs for anything suspicious." } else { "Check your Mac against a database of Mac threats: trojans, adware, spyware and crypto miners." },
                 bullets: &[(Glyph::Bug, "Malware Removal"), (Glyph::Shield, "Suspicious Helpers"), (Glyph::Bolt, "Running Threats")],
             },
             Page::Performance => Intro {
                 title: "Performance",
-                text: "Keep your Mac quick with regular maintenance and a tidy startup.",
+                text: if crate::linux::ON { "Keep your computer quick with regular maintenance and a tidy startup." } else { "Keep your Mac quick with regular maintenance and a tidy startup." },
                 bullets: &[(Glyph::Wrench, "Maintenance Tasks"), (Glyph::Power, "Login Items"), (Glyph::Rocket, "Background Items")],
             },
             Page::Apps => Intro {
@@ -149,8 +149,8 @@ impl Page {
             },
             Page::Cloud => Intro {
                 title: "Cloud Files",
-                text: "See how much room your cloud folders take on this Mac and free it up.",
-                bullets: &[(Glyph::Cloud, "iCloud Drive"), (Glyph::Folder, "Other Cloud Folders"), (Glyph::Download, "Free Local Copies")],
+                text: if crate::linux::ON { "See how much room your cloud folders take on this computer." } else { "See how much room your cloud folders take on this Mac and free it up." },
+                bullets: if crate::linux::ON { &[(Glyph::Cloud, "Dropbox, Nextcloud & more"), (Glyph::Folder, "Largest Synced Files")] } else { &[(Glyph::Cloud, "iCloud Drive"), (Glyph::Folder, "Other Cloud Folders"), (Glyph::Download, "Free Local Copies")] },
             },
             Page::Tools | Page::Activity => Intro { title: "", text: "", bullets: &[] },
         }
@@ -1081,6 +1081,10 @@ mod tests {
 }
 
 pub fn reveal(p: &std::path::Path) {
+    if crate::linux::ON {
+        crate::linux::reveal(p);
+        return;
+    }
     let _ = std::process::Command::new("open").arg("-R").arg(p).spawn();
 }
 
