@@ -84,6 +84,9 @@ pub fn pick_file() -> Option<PathBuf> {
     if crate::linux::ON {
         return crate::linux::pick_file();
     }
+    if crate::windows::ON {
+        return crate::windows::pick_file();
+    }
     let out = std::process::Command::new("osascript")
         .args(["-e", "POSIX path of (choose file with prompt \"Choose a threat database (.json)\")"])
         .output()
@@ -151,7 +154,28 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
         (PathBuf::from("/Library/LaunchAgents"), "All users' agents"),
         (PathBuf::from("/Library/LaunchDaemons"), "System helpers"),
     ];
-    let places: Vec<(PathBuf, &'static str)> = if crate::linux::ON { crate::linux::startup_places() } else { places.into_iter().collect() };
+    let places: Vec<(PathBuf, &'static str)> = if crate::windows::ON {
+        vec![] // Windows keeps startup entries in the registry; they are added below
+    } else if crate::linux::ON {
+        crate::linux::startup_places()
+    } else {
+        places.into_iter().collect()
+    };
+    if crate::windows::ON {
+        p.set("Checking what starts by itself…");
+        for e in crate::windows::startup_entries() {
+            if let Some((fam, w)) = db.match_words(&format!("{} {}", e.name, e.program)) {
+                out.push(hit(e.path, e.name, e.program, e.place, fam, format!("matches “{w}”")));
+                continue;
+            }
+            if let Some(fam) = sha256_file(Path::new(&e.program)).and_then(|s| db.sha256.get(&s)).and_then(|n| db.family(n)) {
+                out.push(sure(hit(e.path, e.name, e.program, e.place, fam, "file fingerprint matches".into())));
+                continue;
+            }
+            let (verdict, reason) = crate::scan::judge(&e.name, &e.program, &e.name);
+            out.push(AgentItem { path: e.path, label: e.name, program: e.program, place: e.place, verdict, reason, category: String::new(), selected: false, pid: None });
+        }
+    }
     for (dir, place) in places {
         for f in children(&dir) {
             if p.cancelled() {
@@ -204,12 +228,20 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
 
     // 3. browser extensions (Chrome-family browsers keep a manifest per extension)
     p.set("Checking browser extensions…");
-    let browsers = if crate::linux::ON {
+    let browsers = if crate::windows::ON {
+        [("Google/Chrome/User Data", "Chrome"), ("Microsoft/Edge/User Data", "Edge"), ("BraveSoftware/Brave-Browser/User Data", "Brave")].to_vec()
+    } else if crate::linux::ON {
         [("google-chrome", "Chrome"), ("microsoft-edge", "Edge"), ("BraveSoftware/Brave-Browser", "Brave"), ("chromium", "Chrome")].to_vec()
     } else {
         [("Google/Chrome", "Chrome"), ("Microsoft Edge", "Edge"), ("BraveSoftware/Brave-Browser", "Brave")].to_vec()
     };
-    let support = if crate::linux::ON { crate::linux::config_home() } else { h.join("Library/Application Support") };
+    let support = if crate::windows::ON {
+        crate::windows::local()
+    } else if crate::linux::ON {
+        crate::linux::config_home()
+    } else {
+        h.join("Library/Application Support")
+    };
     for (dir, browser) in browsers {
         let base = support.join(dir);
         for profile in children(&base) {

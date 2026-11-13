@@ -1,3 +1,6 @@
+// On Windows, open as a desktop app without a console window behind it.
+#![windows_subsystem = "windows"]
+
 mod app;
 mod art;
 mod linux;
@@ -5,6 +8,7 @@ mod pages;
 mod scan;
 mod threats;
 mod ui_kit;
+mod windows;
 
 use eframe::egui;
 use std::path::PathBuf;

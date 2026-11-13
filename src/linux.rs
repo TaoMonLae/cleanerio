@@ -5,7 +5,6 @@
 
 use crate::scan::{children, dir_size, file_name, home, AppInfo, Progress, Task};
 use std::collections::{HashMap, HashSet};
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// True in the Linux build.
@@ -123,7 +122,7 @@ const SESSION: &[&str] = &[
 pub fn heavy_apps() -> Vec<(sysinfo::Pid, String, u64, f32)> {
     let Ok(mut sys) = sysinfo::System::new() else { return vec![] };
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-    let me = std::fs::metadata(home()).map(|m| m.uid()).ok();
+    let me = std::fs::metadata(home()).map(|m| crate::scan::owner_id(&m)).ok();
     let mut v: Vec<_> = sys
         .processes()
         .iter()
@@ -132,7 +131,7 @@ pub fn heavy_apps() -> Vec<(sysinfo::Pid, String, u64, f32)> {
             let exe = p.exe().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
             pid.as_u32() != std::process::id()
                 && !exe.is_empty()
-                && std::fs::metadata(format!("/proc/{}", pid.as_u32())).map(|m| m.uid()).ok() == me
+                && std::fs::metadata(format!("/proc/{}", pid.as_u32())).map(|m| crate::scan::owner_id(&m)).ok() == me
                 && !SESSION.contains(&name.as_str())
                 && !exe.starts_with("/usr/libexec/")
                 && !exe.starts_with("/usr/lib/systemd/")

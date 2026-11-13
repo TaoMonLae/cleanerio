@@ -1,0 +1,49 @@
+name: Build
+
+# Builds and tests Cleanerio on Mac, Linux and Windows for every push and pull request,
+# and keeps the Windows and Linux programs as downloads on the run's page.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # When a step fails, the compiler's errors are repeated as annotations on the run's
+      # summary page, so they can be read without opening the full log.
+      - name: Test
+        shell: bash
+        run: |
+          cargo test 2>&1 | tee out.txt; code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            for part in 1 2 3; do
+              msg=$(grep -E "^error|panicked|FAILED" -A9 out.txt | sed -n "$(( (part-1)*45+1 )),$(( part*45 ))p" | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+              [ -n "$msg" ] && echo "::error::$msg"
+            done
+          fi
+          exit "$code"
+      - name: Build
+        run: cargo build --release
+      - name: Keep the Windows program
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cleanerio-windows-x64
+          path: target/release/cleanerio.exe
+      - name: Keep the Linux program
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cleanerio-linux-x64
+          path: target/release/cleanerio
