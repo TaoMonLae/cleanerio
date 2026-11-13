@@ -52,7 +52,7 @@ impl Database {
 }
 
 fn user_file() -> PathBuf {
-    home().join("Library/Application Support/Cleanerio/threats.json")
+    crate::scan::app_data_dir().join("threats.json")
 }
 
 /// The newest of the built-in database and the saved one.
@@ -81,6 +81,9 @@ pub fn install(from: &Path) -> Result<Database, String> {
 
 /// Asks the person for a database file with the standard macOS file picker.
 pub fn pick_file() -> Option<PathBuf> {
+    if crate::linux::ON {
+        return crate::linux::pick_file();
+    }
     let out = std::process::Command::new("osascript")
         .args(["-e", "POSIX path of (choose file with prompt \"Choose a threat database (.json)\")"])
         .output()
@@ -148,16 +151,18 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
         (PathBuf::from("/Library/LaunchAgents"), "All users' agents"),
         (PathBuf::from("/Library/LaunchDaemons"), "System helpers"),
     ];
+    let places: Vec<(PathBuf, &'static str)> = if crate::linux::ON { crate::linux::startup_places() } else { places.into_iter().collect() };
     for (dir, place) in places {
         for f in children(&dir) {
             if p.cancelled() {
                 return out;
             }
-            if f.extension().map(|e| e != "plist").unwrap_or(true) {
+            let wanted = if crate::linux::ON { crate::linux::is_startup_file(&f) } else { f.extension().is_some_and(|e| e == "plist") };
+            if !wanted {
                 continue;
             }
             p.set(format!("Checking {}", short(&f)));
-            let (label, program) = crate::scan::plist_program(&f);
+            let (label, program) = if crate::linux::ON { crate::linux::entry_program(&f) } else { crate::scan::plist_program(&f) };
             let text = format!("{label} {program} {}", file_name(&f));
             if let Some((fam, w)) = db.match_words(&text) {
                 out.push(hit(f, label, program, place, fam, format!("matches “{w}”")));
@@ -199,13 +204,14 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
 
     // 3. browser extensions (Chrome-family browsers keep a manifest per extension)
     p.set("Checking browser extensions…");
-    let browsers = [
-        ("Google/Chrome", "Chrome"),
-        ("Microsoft Edge", "Edge"),
-        ("BraveSoftware/Brave-Browser", "Brave"),
-    ];
+    let browsers = if crate::linux::ON {
+        [("google-chrome", "Chrome"), ("microsoft-edge", "Edge"), ("BraveSoftware/Brave-Browser", "Brave"), ("chromium", "Chrome")].to_vec()
+    } else {
+        [("Google/Chrome", "Chrome"), ("Microsoft Edge", "Edge"), ("BraveSoftware/Brave-Browser", "Brave")].to_vec()
+    };
+    let support = if crate::linux::ON { crate::linux::config_home() } else { h.join("Library/Application Support") };
     for (dir, browser) in browsers {
-        let base = h.join("Library/Application Support").join(dir);
+        let base = support.join(dir);
         for profile in children(&base) {
             for ext in children(&profile.join("Extensions")) {
                 for ver in children(&ext) {

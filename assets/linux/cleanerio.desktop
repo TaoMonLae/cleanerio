@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Cleanerio
+GenericName=System Cleaner
+Comment=Find junk, large files, duplicates and unused apps, and see what fills your disk
+Exec=cleanerio
+Icon=cleanerio
+Terminal=false
+Categories=Utility;System;
+Keywords=clean;cache;disk;space;junk;duplicates;
+StartupWMClass=cleanerio

@@ -157,6 +157,9 @@ pub fn is_protected(path: &Path) -> bool {
     if h.starts_with(path) {
         return true;
     }
+    if crate::linux::ON && crate::linux::is_protected(path) {
+        return true;
+    }
     const SYSTEM: &[&str] = &["/System", "/usr", "/bin", "/sbin"];
     if SYSTEM.iter().any(|s| path.starts_with(s)) {
         return true;
@@ -180,6 +183,9 @@ pub fn is_protected(path: &Path) -> bool {
 /// Places the space map never walks into: other drives, network shares and the second view
 /// of the startup disk (counting it would double every size).
 fn outside_this_disk(path: &Path) -> bool {
+    if crate::linux::ON {
+        return crate::linux::outside_this_disk(path);
+    }
     const SKIP: &[&str] = &["/System/Volumes", "/Volumes", "/dev", "/net", "/home"];
     SKIP.iter().any(|s| path == Path::new(s))
 }
@@ -226,6 +232,9 @@ fn idle_days(path: &Path, md: Option<&std::fs::Metadata>) -> u64 {
 
 /// Bundle ids (lower case) of the apps that are running now.
 pub fn running_bundle_ids() -> HashSet<String> {
+    if crate::linux::ON {
+        return crate::linux::running_names();
+    }
     let mut ids = HashSet::new();
     let Ok(mut sys) = sysinfo::System::new() else { return ids };
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
@@ -256,12 +265,20 @@ pub fn app_is_running(app: &Path) -> bool {
 
 /// A cache folder belongs to a running app when it is named after the app's bundle id.
 pub fn cache_in_use(folder_name: &str, running: &HashSet<String>) -> bool {
+    if crate::linux::ON && crate::linux::cache_in_use(folder_name, running) {
+        return true;
+    }
     let n = folder_name.to_lowercase();
     running.iter().any(|id| n == *id || n.starts_with(&format!("{id}.")))
 }
 
 /// The launchd label of a login agent file in a LaunchAgents folder.
 fn agent_label(path: &Path) -> Option<String> {
+    if crate::linux::ON {
+        if let Some(unit) = crate::linux::agent_label(path) {
+            return Some(unit);
+        }
+    }
     let in_agents = path.parent().and_then(|p| p.file_name()).is_some_and(|n| n == "LaunchAgents");
     (in_agents && path.extension().is_some_and(|e| e == "plist")).then(|| plist_program(path).0)
 }
@@ -269,6 +286,10 @@ fn agent_label(path: &Path) -> Option<String> {
 /// Stops a login agent that is loaded, so removing its file takes effect now and not only
 /// after the next login. Failure is fine: it may simply not be loaded.
 fn unload_agent(label: &str) {
+    if crate::linux::ON {
+        crate::linux::unload_agent(label);
+        return;
+    }
     if !cfg!(target_os = "macos") {
         return;
     }
@@ -281,6 +302,9 @@ fn unload_agent(label: &str) {
 /// macOS's own programs and this app are left out, so they can't be quit by mistake.
 /// Looking at every running program takes a moment, so this runs on a background thread.
 pub fn heavy_apps() -> Vec<(sysinfo::Pid, String, u64, f32)> {
+    if crate::linux::ON {
+        return crate::linux::heavy_apps();
+    }
     let Ok(mut sys) = sysinfo::System::new() else { return vec![] };
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let mut v: Vec<_> = sys
@@ -374,11 +398,112 @@ fn junk_items(dirs: &[PathBuf], filter: impl Fn(&Path) -> bool, on: bool, p: &Pr
         }
     }
     out.sort_by(|a, b| b.size.cmp(&a.size));
-    let note = blocked.then(|| "macOS didn't let us look here. Give this app Full Disk Access in System Settings › Privacy & Security to include it.".to_string());
+    let note = blocked.then(|| {
+        if crate::linux::ON {
+            "Your account isn't allowed to read this folder, so it was left out.".to_string()
+        } else {
+            "macOS didn't let us look here. Give this app Full Disk Access in System Settings › Privacy & Security to include it.".to_string()
+        }
+    });
     (out, note)
 }
 
+/// The Linux junk groups: the cache folder, logs, developer caches, package files, the Trash.
+fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
+    use crate::linux;
+    let h = home();
+    let mut groups = vec![];
+
+    p.set("Looking for cache files…");
+    let (mut items, note) = junk_items(&[linux::cache_home()], |_| true, true, p);
+    let running = running_bundle_ids();
+    for it in items.iter_mut() {
+        if cache_in_use(&it.name, &running) {
+            it.in_use = true;
+            it.selected = false;
+        } else if linux::keep_cache_by_default(&it.name) {
+            it.selected = false;
+        }
+    }
+    groups.push(JunkGroup {
+        kind: JunkKind::Caches,
+        title: "Cache files",
+        desc: "Temporary files apps keep to load faster. Apps rebuild them when needed.",
+        icon: "🗄",
+        items,
+        expanded: false,
+        note,
+    });
+
+    p.set("Looking for log files…");
+    let (mut items, note) = junk_items(&[linux::data_home().join("xorg"), h.join(".npm/_logs")], |_| true, true, p);
+    let (more, _) = junk_items(&[h.clone()], |c| file_name(c).starts_with(".xsession-errors"), true, p);
+    items.extend(more);
+    groups.push(JunkGroup {
+        kind: JunkKind::Logs,
+        title: "Log files",
+        desc: "Records of app activity that are mostly useful for troubleshooting.",
+        icon: "📄",
+        items,
+        expanded: false,
+        note,
+    });
+
+    p.set("Looking for developer leftovers…");
+    let (mut items, note) = junk_items(&[h.join(".cargo/registry/cache"), h.join(".cargo/registry/src"), h.join(".gradle/caches")], |_| true, false, p);
+    let (more, _) = junk_items(&[h.join(".npm")], |c| file_name(c) == "_cacache", false, p);
+    items.extend(more);
+    let (more, _) = junk_items(&[h.join("go/pkg/mod")], |c| file_name(c) == "cache", false, p);
+    items.extend(more);
+    items.sort_by(|a, b| b.size.cmp(&a.size));
+    groups.push(JunkGroup {
+        kind: JunkKind::Developer,
+        title: "Developer junk",
+        desc: "Downloaded packages that coding tools fetch again when a project needs them.",
+        icon: "🛠",
+        items,
+        expanded: false,
+        note,
+    });
+
+    p.set("Looking for old installers…");
+    let (items, note) = junk_items(
+        &[h.join("Downloads"), h.join("Desktop")],
+        |c| {
+            let ext = c.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+            matches!(ext.as_str(), "deb" | "rpm" | "iso" | "flatpak" | "flatpakref" | "snap")
+        },
+        false,
+        p,
+    );
+    groups.push(JunkGroup {
+        kind: JunkKind::Installers,
+        title: "Old installers",
+        desc: "Package files and disk images left in Downloads or on the Desktop.",
+        icon: "💿",
+        items,
+        expanded: false,
+        note,
+    });
+
+    p.set("Looking in the Trash…");
+    let (items, note) = junk_items(&[trash_dir()], |_| true, false, p);
+    groups.push(JunkGroup {
+        kind: JunkKind::Trash,
+        title: "Trash",
+        desc: "Files you already moved to the Trash. Emptying it frees the space for good.",
+        icon: "🗑",
+        items,
+        expanded: false,
+        note,
+    });
+    groups
+}
+
 pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
+    if crate::linux::ON {
+        return scan_junk_linux(p);
+    }
     let h = home();
     let mut groups = vec![];
 
@@ -538,10 +663,12 @@ pub fn judge(label: &str, program: &str, file: &str) -> (Verdict, String) {
     }
     if !program.is_empty() {
         let pp = Path::new(program);
-        if program.starts_with("/tmp") || program.starts_with("/private/tmp") || program.starts_with("/Users/Shared") {
+        let temp = ["/tmp", "/private/tmp", "/Users/Shared"];
+        let temp_linux = ["/var/tmp", "/dev/shm"];
+        if temp.iter().any(|t| program.starts_with(t)) || (crate::linux::ON && temp_linux.iter().any(|t| program.starts_with(t))) {
             return (Verdict::Review, "Runs a program from a shared or temporary folder".into());
         }
-        if pp.components().any(|c| {
+        if !crate::linux::ON && pp.components().any(|c| {
             let s = c.as_os_str().to_string_lossy();
             s.starts_with('.') && s.len() > 1 && s != ".."
         }) {
@@ -572,6 +699,9 @@ pub struct AppInfo {
     /// its bundle id) start here: a folder called "Steam" may hold a whole games library.
     pub skip: HashSet<PathBuf>,
     pub last_used_days: u64,
+    /// Set when a package manager owns the app (Linux): how to remove it. Such an app can't
+    /// be moved to the Trash; only the files it keeps in the home folder can.
+    pub managed: Option<String>,
 }
 
 impl AppInfo {
@@ -626,6 +756,9 @@ pub fn find_leftovers(name: &str, bundle_id: &str, lib: &[PathBuf]) -> Vec<PathB
 }
 
 pub fn scan_apps(p: &Progress) -> Vec<AppInfo> {
+    if crate::linux::ON {
+        return crate::linux::scan_apps(p);
+    }
     let h = home();
     let lib: Vec<PathBuf> = LEFTOVER_DIRS.iter().flat_map(|d| children(&h.join(d))).collect();
     let mut bundles = vec![];
@@ -661,7 +794,7 @@ pub fn scan_apps(p: &Progress) -> Vec<AppInfo> {
         let last_used_days = idle_days(&a, std::fs::metadata(&a).ok().as_ref());
         let leftovers: Vec<(PathBuf, u64)> = leftovers.collect();
         let skip = name_only_leftovers(&bundle_id, &leftovers);
-        out.push(AppInfo { name, path: a, bundle_id, version, size, leftovers, skip, last_used_days });
+        out.push(AppInfo { name, path: a, bundle_id, version, size, leftovers, skip, last_used_days, managed: None });
     }
     out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     out
@@ -686,7 +819,7 @@ pub fn kind_of(p: &Path) -> String {
         "mp3" | "m4a" | "wav" | "aiff" | "flac" | "aac" => "Audio",
         "jpg" | "jpeg" | "png" | "heic" | "tiff" | "gif" | "raw" | "psd" => "Picture",
         "zip" | "rar" | "7z" | "tar" | "gz" | "xz" | "tgz" => "Archive",
-        "dmg" | "pkg" | "iso" | "xip" => "Installer",
+        "dmg" | "pkg" | "iso" | "xip" | "deb" | "rpm" | "appimage" => "Installer",
         "pdf" | "doc" | "docx" | "pages" | "key" | "ppt" | "pptx" | "xls" | "xlsx" | "numbers" => "Document",
         "app" => "App",
         _ => "Other",
@@ -696,7 +829,7 @@ pub fn kind_of(p: &Path) -> String {
 
 pub fn scan_big(root: PathBuf, min_bytes: u64, p: &Progress) -> Vec<BigFile> {
     let h = home();
-    let skip: HashSet<PathBuf> = [h.join("Library"), h.join(".Trash")].into_iter().collect();
+    let skip: HashSet<PathBuf> = [h.join("Library"), trash_dir()].into_iter().collect();
     let mut out = vec![];
     let mut stack = vec![root];
     let mut n = 0u64;
@@ -862,8 +995,19 @@ pub fn trash_paths(paths: Vec<(PathBuf, u64)>, p: &Progress) -> ActionReport {
 pub fn empty_trash(p: &Progress, size: u64) -> ActionReport {
     p.set("Emptying the Trash…");
     // list what is in the Trash first: afterwards there is nothing left to list
-    let before = children(&home().join(".Trash"));
+    let before = children(&trash_dir());
     let _ = size; // already counted when the files were moved to the Trash
+    if crate::linux::ON {
+        let mut r = ActionReport::default();
+        match crate::linux::empty_trash() {
+            Ok(()) => {
+                r.removed = before;
+                r.message = "The Trash is empty.".into();
+            }
+            Err(e) => r.message = format!("Couldn't empty the Trash: {e}"),
+        }
+        return r;
+    }
     let out = std::process::Command::new("osascript")
         .args(["-e", "tell application \"Finder\" to empty trash"])
         .output();
@@ -892,6 +1036,9 @@ pub struct Task {
 }
 
 pub fn tasks() -> Vec<Task> {
+    if crate::linux::ON {
+        return crate::linux::tasks();
+    }
     vec![
         Task { title: "Free up memory", desc: "Rarely needed: macOS manages memory well on its own.", icon: "🧠", admin: true, cmd: "purge", selected: false, last: None },
         Task { title: "Flush DNS cache", desc: "Fixes websites that won't load after network changes.", icon: "🌐", admin: true, cmd: "dscacheutil -flushcache; killall -HUP mDNSResponder", selected: false, last: None },
@@ -910,15 +1057,18 @@ pub fn run_tasks(cmds: Vec<(usize, bool, String)>, p: &Progress) -> Vec<(usize, 
     if !admin.is_empty() {
         p.set("Waiting for your password…");
         let joined = admin.iter().map(|c| c.2.clone()).collect::<Vec<_>>().join("; ");
-        let script = format!("do shell script \"{}\" with administrator privileges", joined.replace('"', "\\\""));
-        let out = std::process::Command::new("osascript").args(["-e", &script]).output();
-        let msg = match out {
-            Ok(o) if o.status.success() => "Done".to_string(),
-            Ok(o) => {
-                let e = String::from_utf8_lossy(&o.stderr).to_string();
-                if e.contains("-128") { "Cancelled".into() } else { format!("Failed: {}", e.trim()) }
+        let msg = if crate::linux::ON {
+            crate::linux::run_admin(&joined)
+        } else {
+            let script = format!("do shell script \"{}\" with administrator privileges", joined.replace('"', "\\\""));
+            match std::process::Command::new("osascript").args(["-e", &script]).output() {
+                Ok(o) if o.status.success() => "Done".to_string(),
+                Ok(o) => {
+                    let e = String::from_utf8_lossy(&o.stderr).to_string();
+                    if e.contains("-128") { "Cancelled".into() } else { format!("Failed: {}", e.trim()) }
+                }
+                Err(e) => format!("Failed: {e}"),
             }
-            Err(e) => format!("Failed: {e}"),
         };
         for c in &admin {
             results.push((c.0, msg.clone()));
@@ -1018,7 +1168,7 @@ fn same_bytes(a: &Path, b: &Path) -> bool {
 /// finally byte for byte. Two names for one file (hard links) count once.
 pub fn scan_duplicates(root: PathBuf, p: &Progress) -> Vec<DupGroup> {
     let mut by_size: std::collections::HashMap<u64, Vec<PathBuf>> = Default::default();
-    let skip: HashSet<PathBuf> = [home().join("Library"), home().join(".Trash")].into_iter().collect();
+    let skip: HashSet<PathBuf> = [home().join("Library"), trash_dir()].into_iter().collect();
     let mut stack = vec![root];
     let mut n = 0u64;
     let mut seen_files: HashSet<(u64, u64)> = HashSet::new();
@@ -1130,6 +1280,9 @@ pub struct CloudFolder {
 pub fn scan_cloud(p: &Progress) -> Vec<CloudFolder> {
     let h = home();
     let mut roots = vec![];
+    if crate::linux::ON {
+        roots.extend(crate::linux::cloud_roots().into_iter().map(|(name, path)| (name, path, false)));
+    }
     let icloud = h.join("Library/Mobile Documents/com~apple~CloudDocs");
     if icloud.exists() {
         roots.push(("iCloud Drive".to_string(), icloud, true));
@@ -1175,6 +1328,9 @@ pub fn evict(paths: Vec<(PathBuf, u64)>, p: &Progress) -> ActionReport {
 // ---------------------------------------------------------------- login items
 
 pub fn login_items() -> Result<Vec<String>, String> {
+    if crate::linux::ON {
+        return crate::linux::login_items();
+    }
     let out = std::process::Command::new("osascript")
         .args([
             "-e",
@@ -1194,6 +1350,9 @@ pub fn login_items() -> Result<Vec<String>, String> {
 }
 
 pub fn remove_login_item(name: &str) -> Result<(), String> {
+    if crate::linux::ON {
+        return crate::linux::remove_login_item(name);
+    }
     let script = format!("tell application \"System Events\" to delete login item \"{}\"", name.replace('"', ""));
     let out = std::process::Command::new("osascript").args(["-e", &script]).output().map_err(|e| e.to_string())?;
     if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
@@ -1207,6 +1366,10 @@ pub struct AppsSummary {
 }
 
 pub fn apps_summary() -> AppsSummary {
+    if crate::linux::ON {
+        let (total, unused) = crate::linux::apps_summary();
+        return AppsSummary { total, unused };
+    }
     let mut total = 0;
     let mut unused = vec![];
     for dir in [PathBuf::from("/Applications"), home().join("Applications")] {
@@ -1225,13 +1388,33 @@ pub fn apps_summary() -> AppsSummary {
 
 pub fn clutter_roots() -> Vec<PathBuf> {
     let h = home();
-    ["Downloads", "Desktop", "Documents", "Movies", "Music", "Pictures"].iter().map(|d| h.join(d)).filter(|p| p.exists()).collect()
+    ["Downloads", "Desktop", "Documents", "Movies", "Videos", "Music", "Pictures"].iter().map(|d| h.join(d)).filter(|p| p.exists()).collect()
 }
 
 // ---------------------------------------------------------------- activity history
 
+/// Where Cleanerio keeps its own small files (the activity history, a threat database).
+pub fn app_data_dir() -> PathBuf {
+    if crate::linux::ON { crate::linux::data_home().join("Cleanerio") } else { home().join("Library/Application Support/Cleanerio") }
+}
+
+/// The folder trashed files wait in.
+pub fn trash_dir() -> PathBuf {
+    if crate::linux::ON { crate::linux::trash_dir() } else { home().join(".Trash") }
+}
+
+/// What to call the machine in the interface.
+pub fn computer() -> &'static str {
+    if crate::linux::ON { "computer" } else { "Mac" }
+}
+
+/// The label of the "show this file" buttons.
+pub fn show_in_files() -> &'static str {
+    if crate::linux::ON { "Show in Files" } else { "Show in Finder" }
+}
+
 fn activity_file() -> PathBuf {
-    home().join("Library/Application Support/Cleanerio/activity.tsv")
+    app_data_dir().join("activity.tsv")
 }
 
 pub fn log_activity(what: &str, bytes: u64) {
@@ -1394,6 +1577,9 @@ pub fn low_disk_limit(disk_total: u64) -> u64 {
 
 /// Battery percent and state from `pmset -g batt`; None on a Mac without a battery.
 pub fn battery() -> Option<(u8, String)> {
+    if crate::linux::ON {
+        return crate::linux::battery();
+    }
     let out = std::process::Command::new("pmset").args(["-g", "batt"]).output().ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     let line = s.lines().find(|l| l.contains("InternalBattery"))?;
@@ -1410,6 +1596,9 @@ pub fn battery() -> Option<(u8, String)> {
 
 /// Name of the Wi-Fi network, when macOS shares it.
 pub fn wifi_name() -> Option<String> {
+    if crate::linux::ON {
+        return crate::linux::wifi_name();
+    }
     let out = std::process::Command::new("ipconfig").args(["getsummary", "en0"]).output().ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     s.lines()
@@ -1436,6 +1625,9 @@ pub const THREAT_SCAN_LOG: &str = "Ran threat scan";
 
 /// Battery condition as System Information reports it ("Normal", "Service Recommended"...).
 pub fn battery_condition() -> Option<String> {
+    if crate::linux::ON {
+        return crate::linux::battery_condition();
+    }
     let out = std::process::Command::new("system_profiler").arg("SPPowerDataType").output().ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     s.lines().find_map(|l| l.trim().strip_prefix("Condition: ").map(|x| x.trim().to_string()))

@@ -600,7 +600,7 @@ impl CleanerApp {
             self.agents_job = Some(Job::spawn(scan::scan_agents));
         }
         self.refresh_procs();
-        self.header(ui, "Keep your Mac quick with maintenance and a tidy startup");
+        self.header(ui, &format!("Keep your {} quick with maintenance and a tidy startup", scan::computer()));
         let accent = Page::Performance.accent();
         let labels = vec![
             format!("Maintenance ({})", self.tasks.len()),
@@ -662,7 +662,7 @@ impl CleanerApp {
                     }
                     Some(Err(e)) => {
                         ui.label(RichText::new("Couldn't read your login items.").size(16.0));
-                        ui.label(RichText::new(format!("macOS may ask for permission to control System Events. ({})", elide(e, 90))).color(MUTED));
+                        ui.label(RichText::new(format!("{} ({})", if crate::linux::ON { "The startup folder couldn't be read." } else { "macOS may ask for permission to control System Events." }, elide(e, 90))).color(MUTED));
                     }
                     Some(Ok(v)) if v.is_empty() => {
                         ui.label(RichText::new("No apps open by themselves when you log in.").size(16.0).color(MUTED));
@@ -853,7 +853,7 @@ impl CleanerApp {
                         ui.vertical_centered(|ui| {
                             let (r, _) = ui.allocate_exact_size(Vec2::splat(150.0), Sense::hover());
                             art::hero(ui.painter(), Page::Apps.outline(), Page::Apps.glyph(), r.center(), 60.0, accent);
-                            ui.label(RichText::new("Pick an app to see what it keeps on your Mac.").color(MUTED));
+                            ui.label(RichText::new(format!("Pick an app to see what it keeps on your {}.", scan::computer())).color(MUTED));
                         });
                     }
                     Some((i, a)) => {
@@ -888,14 +888,17 @@ impl CleanerApp {
                             }
                         });
                         ui.add_space(10.0);
+                        if let Some(how) = &a.managed {
+                            ui.label(RichText::new(how).size(12.5).color(MUTED));
+                        }
                         ui.horizontal_wrapped(|ui| {
-                            if !busy && pill(ui, &format!("Uninstall · {}", human(a.chosen_total())), accent).clicked() {
+                            if a.managed.is_none() && !busy && pill(ui, &format!("Uninstall · {}", human(a.chosen_total())), accent).clicked() {
                                 uninstall = Some(i);
                             }
                             if !a.chosen().is_empty() && ghost(ui, "Reset (keep app)").on_hover_text("Removes settings and caches only").clicked() {
                                 reset = Some(i);
                             }
-                            if ghost(ui, "Show in Finder").clicked() {
+                            if ghost(ui, scan::show_in_files()).clicked() {
                                 reveal(&a.path);
                             }
                         });
@@ -1264,11 +1267,11 @@ impl CleanerApp {
                         if c.is_dir && !c.children.is_empty() && ghost(ui, "Open folder").clicked() {
                             enter = sel;
                         }
-                        if real && ghost(ui, "Show in Finder").clicked() {
+                        if real && ghost(ui, scan::show_in_files()).clicked() {
                             reveal(&c.path);
                         }
                         if real && scan::is_protected(&c.path) {
-                            ui.label(RichText::new("Protected folder: macOS and your apps need it. Open it to clean what's inside.").size(12.5).color(WARN));
+                            ui.label(RichText::new(if crate::linux::ON { "Protected folder: your system and your apps need it. Open it to clean what's inside." } else { "Protected folder: macOS and your apps need it. Open it to clean what's inside." }).size(12.5).color(WARN));
                         } else if real && !busy && pill(ui, "Move to Trash", accent).clicked() {
                             trash = Some((c.path.clone(), c.size));
                         }
@@ -1312,7 +1315,7 @@ impl CleanerApp {
             }
             return;
         }
-        self.header(ui, "How much room your cloud folders take on this Mac");
+        self.header(ui, &format!("How much room your cloud folders take on this {}", scan::computer()));
         let accent = Page::Cloud.accent();
         let busy = self.action_job.is_some();
         let folders = self.cloud.as_mut().unwrap();
@@ -1320,7 +1323,7 @@ impl CleanerApp {
         ui.horizontal(|ui| {
             let total: u64 = folders.iter().map(|f| f.local).sum();
             ui.label(RichText::new(human(total)).size(30.0).strong());
-            ui.label(RichText::new("of cloud files stored on this Mac").size(15.0).color(MUTED));
+            ui.label(RichText::new(format!("of cloud files stored on this {}", scan::computer())).size(15.0).color(MUTED));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ghost(ui, "Scan again").clicked() {
                     rescan = true;
@@ -1331,8 +1334,8 @@ impl CleanerApp {
         if folders.is_empty() {
             ui.add_space(30.0);
             ui.vertical_centered(|ui| {
-                ui.label(RichText::new("No cloud folders found on this Mac.").size(18.0));
-                ui.label(RichText::new("iCloud Drive and folders from other cloud apps show up here.").color(MUTED));
+                ui.label(RichText::new(format!("No cloud folders found on this {}.", scan::computer())).size(18.0));
+                ui.label(RichText::new(if crate::linux::ON { "Folders synced by Dropbox, Nextcloud, OneDrive and similar apps show up here." } else { "iCloud Drive and folders from other cloud apps show up here." }).color(MUTED));
             });
         } else {
             let sel = self.cloud_sel.min(folders.len() - 1);
@@ -1346,7 +1349,7 @@ impl CleanerApp {
                 RichText::new(if f.icloud {
                     "Freeing a local copy keeps the file in iCloud; it downloads again when you open it."
                 } else {
-                    "This folder belongs to another cloud app. Use that app to free local copies, or show files in Finder."
+                    if crate::linux::ON { "This folder is synced by a cloud app. Use that app to free local copies, or show the files in your file manager." } else { "This folder belongs to another cloud app. Use that app to free local copies, or show files in Finder." }
                 })
                 .color(MUTED),
             );
@@ -1354,7 +1357,7 @@ impl CleanerApp {
             card(ui, |ui| {
                 ui.set_width(ui.available_width());
                 if f.files.is_empty() {
-                    ui.label(RichText::new("No large files are stored on this Mac here.").color(MUTED));
+                    ui.label(RichText::new(format!("No large files are stored on this {} here.", scan::computer())).color(MUTED));
                 }
                 egui::ScrollArea::vertical().max_height(h).auto_shrink([false; 2]).show_rows(ui, 26.0, f.files.len(), |ui, range| {
                     for b in &mut f.files[range] {
@@ -1379,7 +1382,7 @@ impl CleanerApp {
         self.header(ui, "Handy one-click fixes");
         let accent = Page::Tools.accent();
         if self.trash_size.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(5)) {
-            self.trash_size = Some((scan::dir_size(&scan::home().join(".Trash"), None), std::time::Instant::now()));
+            self.trash_size = Some((scan::dir_size(&scan::trash_dir(), None), std::time::Instant::now()));
         }
         let trash_size = self.trash_size.map(|t| t.0).unwrap_or(0);
         let mut run: Option<usize> = None;
@@ -1407,7 +1410,7 @@ impl CleanerApp {
                             } else if i == self.tasks.len() {
                                 (Glyph::Trash, "Empty the Trash".to_string(), format!("Erase {} in the Trash for good.{}", human(trash_size), if trash_size > TRASH_ALERT_BYTES { " It's getting big." } else { "" }), None)
                             } else {
-                                (Glyph::Disk, "Storage settings".to_string(), "Open macOS's own storage overview.".to_string(), None)
+                                (Glyph::Disk, if crate::linux::ON { "Disk usage" } else { "Storage settings" }.to_string(), if crate::linux::ON { "Open your desktop's disk usage tool." } else { "Open macOS's own storage overview." }.to_string(), None)
                             };
                             glyph_tile(ui, g, accent, 38.0);
                             ui.label(RichText::new(title).size(16.0).strong());
@@ -1454,21 +1457,25 @@ impl CleanerApp {
             }
         }
         if storage {
-            let _ = std::process::Command::new("open").arg("x-apple.systempreferences:com.apple.settings.Storage").spawn();
+            if !crate::linux::ON {
+                let _ = std::process::Command::new("open").arg("x-apple.systempreferences:com.apple.settings.Storage").spawn();
+            } else if !crate::linux::open_disk_usage() {
+                self.toast("No disk usage tool is installed. The Space Map screen shows the same thing.");
+            }
         }
     }
 
     // ------------------------------------------------------------------ activity
 
     pub fn page_activity(&mut self, ui: &mut Ui) {
-        self.header(ui, "How your Mac is doing, and what was cleaned");
+        self.header(ui, &format!("How your {} is doing, and what was cleaned", scan::computer()));
         let accent = Page::Activity.accent();
         let free = self.disk_free;
         let limit = scan::low_disk_limit(self.disk_total);
         let mem = self.mem_used as f32 / self.mem_total as f32;
         let cpu = self.cpu / 100.0;
         if self.trash_size.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(10)) {
-            self.trash_size = Some((scan::dir_size(&scan::home().join(".Trash"), None), std::time::Instant::now()));
+            self.trash_size = Some((scan::dir_size(&scan::trash_dir(), None), std::time::Instant::now()));
         }
         let trash = self.trash_size.map(|t| t.0).unwrap_or(0);
         if self.unused_apps.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(60)) {
@@ -1483,13 +1490,13 @@ impl CleanerApp {
         // (penalty, title, text, button, where it leads), biggest penalty first
         let mut issues: Vec<(i64, String, String, &str, (Page, usize))> = vec![];
         if battery_bad {
-            issues.push((PENALTY_CRITICAL_BATTERY, "Your battery needs service".into(), format!("macOS reports its condition as “{}”.", battery_cond.clone().unwrap_or_default()), "See Activity", (Page::Activity, 0)));
+            issues.push((PENALTY_CRITICAL_BATTERY, "Your battery needs service".into(), format!("{} reports its condition as “{}”.", if crate::linux::ON { "Your system" } else { "macOS" }, battery_cond.clone().unwrap_or_default()), "See Activity", (Page::Activity, 0)));
         }
         if free < limit {
             issues.push((PENALTY_OUT_OF_DISK, "Your disk is getting full".into(), format!("Only {} is left. Clean up junk to make room.", human(free)), "Clean Up Junk", (Page::Cleanup, 0)));
         }
         if smart_days.is_none_or(|d| d > RECENT_SCAN_DAYS) {
-            issues.push((PENALTY_NO_SMART_SCAN, "Run a Smart Scan".into(), "It's been a while since your Mac had a full checkup.".into(), "Smart Scan", (Page::Smart, 0)));
+            issues.push((PENALTY_NO_SMART_SCAN, "Run a Smart Scan".into(), format!("It's been a while since your {} had a full checkup.", scan::computer()), "Smart Scan", (Page::Smart, 0)));
         }
         if unused > 0 {
             issues.push((PENALTY_UNUSED_APPS, "Remove apps you don't use".into(), format!("{} not opened for six months.", plural(unused, "app")), "See Apps", (Page::Apps, 0)));
@@ -1498,7 +1505,7 @@ impl CleanerApp {
             issues.push((PENALTY_TRASH_OVERFILL, "Your Trash is getting big".into(), format!("It holds {}. Empty it to get the space back.", human(trash)), "Open Tools", (Page::Tools, 0)));
         }
         if uptime_days > UPTIME_WARN_DAYS {
-            issues.push((PENALTY_UPTIME, "Time to restart".into(), format!("Your Mac has been running for {uptime_days} days. Restart it once in a while."), "OK", (Page::Activity, 0)));
+            issues.push((PENALTY_UPTIME, "Time to restart".into(), format!("Your {} has been running for {uptime_days} days. Restart it once in a while.", scan::computer()), "OK", (Page::Activity, 0)));
         }
         if threat_days.is_none_or(|d| d > RECENT_SCAN_DAYS) {
             issues.push((PENALTY_NO_THREAT_SCAN, "Check for threats".into(), format!("Scan with the threat database ({} families) to stay safe.", self.db_info.0), "Scan for Threats", (Page::Protection, 0)));
@@ -1510,12 +1517,12 @@ impl CleanerApp {
         card(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Mac Health:").size(24.0).strong());
+                ui.label(RichText::new(if crate::linux::ON { "System Health:" } else { "Mac Health:" }).size(24.0).strong());
                 ui.label(RichText::new(word).size(24.0).strong().color(col));
                 ui.label(RichText::new(format!("{score} / {MAX_HEALTH_SCORE}")).size(15.0).color(MUTED))
                     .on_hover_text("Based on disk space, Trash size, battery condition, time since restart, unused apps and how recently you scanned.");
             });
-            ui.label(RichText::new("Your Mac").color(MUTED));
+            ui.label(RichText::new(if crate::linux::ON { "Your computer" } else { "Your Mac" }).color(MUTED));
             ui.add_space(6.0);
             let w = (ui.available_width() - 2.0 * 12.0) / 3.0;
             let tile = |ui: &mut Ui, g: Glyph, title: &str, line: String, line_col: Color32, action: Option<&str>| -> bool {
@@ -1656,7 +1663,7 @@ fn agent_row(ui: &mut Ui, it: &mut scan::AgentItem) {
                 }
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ghost(ui, "Show in Finder").clicked() {
+                if ghost(ui, scan::show_in_files()).clicked() {
                     reveal(&it.path);
                 }
             });
