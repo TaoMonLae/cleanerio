@@ -315,6 +315,9 @@ pub enum JunkKind {
     Installers,
     Mail,
     Trash,
+    Ai,
+    Backups,
+    BrokenPrefs,
 }
 
 #[derive(Clone)]
@@ -419,6 +422,8 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
             h.join("Library/Developer/Xcode/DerivedData"),
             h.join("Library/Developer/Xcode/iOS DeviceSupport"),
             h.join("Library/Developer/CoreSimulator/Caches"),
+            h.join("Library/Developer/Xcode/iOS Device Logs"),
+            h.join("Library/Developer/Xcode/Archives"),
         ],
         |_| true,
         true,
@@ -474,8 +479,48 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         note,
     });
 
+    p.set("Looking for AI clutter…");
+    groups.push(JunkGroup {
+        kind: JunkKind::Ai,
+        title: "AI clutter",
+        desc: "Caches, logs and old versions left by AI tools. Downloaded local models are listed but not ticked.",
+        icon: "",
+        items: crate::extra::ai_clutter(p),
+        expanded: false,
+        note: None,
+    });
+
+    p.set("Looking for phone backups…");
+    let (items, note) = junk_items(&[h.join("Library/Application Support/MobileSync/Backup")], |_| true, false, p);
+    groups.push(JunkGroup {
+        kind: JunkKind::Backups,
+        title: "iPhone and iPad backups",
+        desc: "Local backups of your devices. Keep the newest if you rely on it.",
+        icon: "",
+        items,
+        expanded: false,
+        note,
+    });
+
+    p.set("Looking for broken settings files…");
+    groups.push(JunkGroup {
+        kind: JunkKind::BrokenPrefs,
+        title: "Broken preferences",
+        desc: "Settings files that can't be read anymore. Apps make fresh ones when needed.",
+        icon: "",
+        items: crate::extra::broken_prefs(p),
+        expanded: false,
+        note: None,
+    });
+
     p.set("Looking in the Trash…");
-    let (items, note) = junk_items(&[h.join(".Trash")], |_| true, false, p);
+    let mut bins = vec![h.join(".Trash")];
+    // Trash bins on other drives (the original's "Mounted Trash Bins")
+    let uid = std::fs::metadata(&h).map(|m| m.uid()).unwrap_or(501);
+    for v in children(Path::new("/Volumes")) {
+        bins.push(v.join(".Trashes").join(uid.to_string()));
+    }
+    let (items, note) = junk_items(&bins, |_| true, false, p);
     groups.push(JunkGroup {
         kind: JunkKind::Trash,
         title: "Trash",
@@ -891,6 +936,9 @@ pub struct Task {
     pub last: Option<String>,
 }
 
+/// Smallest file the duplicate finder compares (estimated; the original's value wasn't found).
+pub const DUPLICATE_MIN_BYTES: u64 = 100_000;
+
 pub fn tasks() -> Vec<Task> {
     vec![
         Task { title: "Free up memory", desc: "Rarely needed: macOS manages memory well on its own.", icon: "🧠", admin: true, cmd: "purge", selected: false, last: None },
@@ -898,6 +946,10 @@ pub fn tasks() -> Vec<Task> {
         Task { title: "Reindex Spotlight", desc: "Rebuilds the search index. Search is slow for an hour or more while it works.", icon: "🔍", admin: true, cmd: "mdutil -E /", selected: false, last: None },
         Task { title: "Rebuild Launch Services", desc: "Fixes duplicate entries in “Open With” menus. May do little on recent macOS.", icon: "📋", admin: false, cmd: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user", selected: false, last: None },
         Task { title: "Clear Quick Look cache", desc: "Refreshes file previews that show the wrong picture.", icon: "👁", admin: false, cmd: "qlmanage -r cache", selected: true, last: None },
+        Task { title: "Free up purgeable space", desc: "Thins the local snapshots macOS keeps, so space it holds back becomes free.", icon: "", admin: true, cmd: "tmutil thinlocalsnapshots / 999999999999 4", selected: false, last: None },
+        Task { title: "Thin Time Machine snapshots", desc: "Deletes the local Time Machine snapshots on this disk. Backups on your backup drive stay.", icon: "", admin: true, cmd: "tmutil deletelocalsnapshots /", selected: false, last: None },
+        Task { title: "Speed up Mail", desc: "Compacts Mail's message index so searching and opening mail is quicker. Quit Mail first.", icon: "", admin: false, cmd: "if pgrep -x Mail >/dev/null; then echo 'Quit Mail first' >&2; exit 1; fi; for f in ~/Library/Mail/V*/MailData/'Envelope Index'; do [ -f \"$f\" ] && sqlite3 \"$f\" vacuum; done", selected: false, last: None },
+        Task { title: "Repair disk permissions", desc: "Resets the permissions of your home folder's files to what macOS expects.", icon: "", admin: false, cmd: "diskutil resetUserPermissions / $(id -u)", selected: false, last: None },
         Task { title: "Restart Dock and Finder", desc: "Fixes a stuck Dock or Finder window without logging out.", icon: "🔄", admin: false, cmd: "killall Dock; killall Finder", selected: false, last: None },
     ]
 }
@@ -1038,7 +1090,7 @@ pub fn scan_duplicates(root: PathBuf, p: &Progress) -> Vec<DupGroup> {
                 if !name.ends_with(".app") && !name.ends_with(".photoslibrary") {
                     stack.push(path);
                 }
-            } else if md.len() >= 512 * 1024 {
+            } else if md.len() >= DUPLICATE_MIN_BYTES {
                 if !seen_files.insert((md.dev(), md.ino())) {
                     continue; // another name for a file already listed
                 }

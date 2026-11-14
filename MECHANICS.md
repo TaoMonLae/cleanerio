@@ -14,4 +14,30 @@ Safety rules:
 - Name-only threat matches and name-only app leftovers are never ticked automatically.
 - "Last opened" comes from the date macOS records, not from file access times.
 
+Windows rules (`src/windows_scan.rs`): temporary files must be at least 7 days old;
+installer files at least 90 days old; large files at least 100 MB. Duplicate candidates
+are 1 MB to 2 GB and are compared by a complete SHA-256 hash after a quick prefix pass.
+The scan examines up to 150,000 personal files. All Windows results start unselected;
+Recycle Bin actions protect folder roots and reject symbolic links and junctions.
+
 Tests: `cargo test` checks the size groups, age filters, thresholds, health levels and low-disk limit at their edges.
+
+## The original's other features (added 2026-11-14)
+Feature lists come from the original's text tables (JunkCleanupModule, ProtectionModule, PerformanceModule, ApplicationsModule, OrganizeModule, ToolboxModule) and file lists from its AIToolScanning binary.
+| Feature | How ours works | Source / estimate |
+|---|---|---|
+| AI Clutter | caches, logs, telemetry and old versions of Claude, Codex, Gemini/Antigravity, Cursor, opencode and the Chrome DevTools MCP profile; local models (Ollama, LM Studio) listed unticked | paths from AIToolScanning strings; model folders estimated |
+| iPhone/iPad backups | ~/Library/Application Support/MobileSync/Backup, unticked | JunkCleanupModule "iOS Device Backups" |
+| Broken preferences | ~/Library/Preferences/*.plist that are empty or unreadable | JunkCleanupModule "Broken Preferences" |
+| Trash bins on other drives | /Volumes/*/.Trashes/<your id> | "Mounted Trash Bins" |
+| Duplicate Finder | same size → first 64 KB → whole file; files of 100 KB or more | method and minimum estimated |
+| Similar Images | 9×8 difference fingerprint; ≤ 6 differing bits = similar; biggest kept; up to 3000 pictures (JPEG/PNG) | estimated |
+| Privacy | browser history, cookies, autofill, caches (Safari, Chrome, Firefox), recent-items lists, saved Wi-Fi networks; browser must be closed | ProtectionModule "Privacy Items", "Wi-Fi Networks" |
+| App Permissions | read from the user's permission database when Full Disk Access is given, otherwise links to each System Settings page; "Take back" uses tccutil | ProtectionModule "Application Permissions" (17 categories) |
+| Maintenance tasks added | Free up purgeable space, Thin Time Machine snapshots, Speed up Mail (vacuum Envelope Index), Repair disk permissions | PerformanceModule task titles; commands are ours |
+| Run maintenance scripts | not added: macOS on this Mac no longer has the `periodic` tool | PerformanceModule "periodic_scripts" |
+| App Updater | App Store apps: public App Store lookup; others: their Sparkle update feed | ApplicationsModule "App Updater"; sources ours |
+| App leftovers | Library items named like an app id (com.x.y) whose app isn't installed and Spotlight can't find; unticked | ApplicationsModule "App Leftovers" |
+| Browser Care | lists Safari and Chrome tabs (only if open), marks duplicate addresses, closes chosen tabs | ToolboxModule "Browser Care" |
+| Screen Cleaning | full-screen black; three clicks or Esc to leave | ToolboxModule "Screen Cleaning Mode" |
+| Language files, universal binaries | not added: removing them breaks app signatures on current macOS | safety choice |

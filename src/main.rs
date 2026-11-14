@@ -1,6 +1,8 @@
 mod app;
 mod art;
+mod extra;
 mod pages;
+mod pages2;
 mod scan;
 mod threats;
 mod ui_kit;

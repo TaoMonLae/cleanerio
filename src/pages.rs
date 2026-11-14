@@ -127,6 +127,9 @@ fn junk_glyph(k: JunkKind) -> Glyph {
         JunkKind::Installers => Glyph::Download,
         JunkKind::Mail => Glyph::Mail,
         JunkKind::Trash => Glyph::Trash,
+        JunkKind::Ai => Glyph::Sparkles,
+        JunkKind::Backups => Glyph::Disk,
+        JunkKind::BrokenPrefs => Glyph::Wrench,
     }
 }
 
@@ -142,8 +145,12 @@ fn task_glyph(title: &str) -> Glyph {
         Glyph::Grid
     } else if t.contains("quick look") {
         Glyph::Copy
-    } else if t.contains("snapshot") {
+    } else if t.contains("snapshot") || t.contains("purgeable") {
         Glyph::Disk
+    } else if t.contains("mail") {
+        Glyph::Mail
+    } else if t.contains("permission") {
+        Glyph::Shield
     } else {
         Glyph::Wrench
     }
@@ -485,7 +492,18 @@ impl CleanerApp {
             }
             return;
         }
-        self.header(ui, "Background helpers and apps checked for unwanted software");
+        self.header(ui, "Malware, privacy traces and app permissions");
+        let labels = vec!["Malware Removal".to_string(), "Privacy".to_string(), "App Permissions".to_string()];
+        tabs(ui, &labels, &mut self.prot_tab);
+        ui.add_space(8.0);
+        if self.prot_tab == 1 {
+            self.privacy_tab(ui);
+            return;
+        }
+        if self.prot_tab == 2 {
+            self.permissions_tab(ui);
+            return;
+        }
         let busy = self.action_job.is_some();
         let accent = Page::Protection.accent();
         let show_ok = &mut self.show_ok_agents;
@@ -773,7 +791,18 @@ impl CleanerApp {
             }
             return;
         }
-        self.header(ui, "Remove apps completely, along with the files they leave behind");
+        self.header(ui, "Uninstall apps, update them and clear what deleted apps left behind");
+        let labels = vec!["Uninstaller".to_string(), "Updater".to_string(), "Leftovers".to_string()];
+        tabs(ui, &labels, &mut self.apps_tab);
+        ui.add_space(8.0);
+        if self.apps_tab == 1 {
+            self.updates_tab(ui);
+            return;
+        }
+        if self.apps_tab == 2 {
+            self.leftovers_tab(ui);
+            return;
+        }
         let accent = Page::Apps.accent();
         let busy = self.action_job.is_some();
         let apps = self.apps.as_ref().unwrap();
@@ -937,7 +966,7 @@ impl CleanerApp {
 
     pub fn page_clutter(&mut self, ui: &mut Ui) {
         if let Some(j) = &self.clutter_job {
-            let title = ["Looking for large files…", "Looking for duplicates…", "Looking at downloads…"][j.stage().min(2)];
+            let title = ["Looking for large files…", "Looking for duplicates…", "Looking at downloads…", "Looking for similar pictures…"][j.stage().min(3)];
             if self.working(ui, title, &j.status()) {
                 j.cancel();
             }
@@ -969,6 +998,7 @@ impl CleanerApp {
             format!("Large & old ({})", self.big.as_ref().map(|b| b.len()).unwrap_or(0)),
             format!("Duplicates ({})", self.dups.as_ref().map(|b| b.len()).unwrap_or(0)),
             format!("Downloads ({})", self.downloads.as_ref().map(|b| b.len()).unwrap_or(0)),
+            format!("Similar images ({})", self.similar.as_ref().map(|b| b.len()).unwrap_or(0)),
         ];
         let mut rescan = false;
         ui.horizontal(|ui| {
@@ -1094,6 +1124,9 @@ impl CleanerApp {
                         g.files.iter().skip(if all { 1 } else { 0 }).filter(|f| f.selected).map(move |f| (f.path.clone(), g.size))
                     })
                     .collect();
+            }
+            3 => {
+                selected = self.similar_tab(ui, h);
             }
             _ => {
                 let files = self.downloads.get_or_insert_with(Vec::new);
@@ -1376,7 +1409,16 @@ impl CleanerApp {
     // ------------------------------------------------------------------ quick tools
 
     pub fn page_tools(&mut self, ui: &mut Ui) {
-        self.header(ui, "Handy one-click fixes");
+        self.header(ui, "Handy one-click fixes and focused tools");
+        let labels = vec!["Quick Fixes".to_string(), "Duplicate Finder".to_string(), "Browser Care".to_string(), "Screen Cleaning".to_string()];
+        tabs(ui, &labels, &mut self.tools_tab);
+        ui.add_space(10.0);
+        match self.tools_tab {
+            1 => return self.duplicate_finder_card(ui),
+            2 => return self.browser_care(ui),
+            3 => return self.screen_cleaning_card(ui),
+            _ => {}
+        }
         let accent = Page::Tools.accent();
         if self.trash_size.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(5)) {
             self.trash_size = Some((scan::dir_size(&scan::home().join(".Trash"), None), std::time::Instant::now()));

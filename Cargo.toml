@@ -3,7 +3,7 @@ name = "cleanerio"
 version = "0.2.0"
 edition = "2024"
 license = "MIT"
-description = "A Mac cleaner that only ever moves things to the Trash"
+description = "A desktop cleaner that moves selected files to the system Trash or Recycle Bin"
 repository = "https://github.com/TaoMonLae/cleanerio"
 readme = "README.md"
 publish = false
@@ -11,7 +11,7 @@ publish = false
 [dependencies]
 dirs = "7.0.0"
 eframe = "0.37.0"
-image = { version = "0.25.10", default-features = false, features = ["png"] }
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
 plist = "1.10.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
