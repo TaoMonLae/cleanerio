@@ -119,9 +119,29 @@ fn items_in(dir: &Path, on: bool, p: &Progress, keep: impl Fn(&Path) -> bool) ->
     out
 }
 
-/// True when nothing changed the file or folder during the last day.
+/// True when nothing changed the file, or anything inside the folder, during the last day.
+/// A folder's own date doesn't change when a file deep inside it does, so the files are
+/// checked too. A folder too big to check in full counts as in use.
 fn untouched_for_a_day(path: &Path) -> bool {
-    std::fs::metadata(path).and_then(|m| m.modified()).map(crate::scan::days_since).is_ok_and(|d| d >= 1)
+    let old = |p: &Path| std::fs::symlink_metadata(p).and_then(|m| m.modified()).map(crate::scan::days_since).is_ok_and(|d| d >= 1);
+    if !old(path) {
+        return false;
+    }
+    let mut stack = vec![path.to_path_buf()];
+    let mut seen = 0;
+    while let Some(dir) = stack.pop() {
+        if !std::fs::symlink_metadata(&dir).is_ok_and(|m| m.is_dir()) {
+            continue;
+        }
+        for c in children(&dir) {
+            seen += 1;
+            if seen > 5000 || !old(&c) {
+                return false;
+            }
+            stack.push(c);
+        }
+    }
+    true
 }
 
 /// Browser profile folders ("Default", "Profile 1"…) inside a Chrome-family data folder.
@@ -544,6 +564,12 @@ pub fn cloud_roots() -> Vec<(String, PathBuf)> {
 /// Battery and Wi-Fi are asked for on a background thread (PowerShell takes a second to
 /// start), and the last answer is handed out meanwhile.
 static STATUS: Mutex<(Option<(u8, String)>, Option<String>, bool)> = Mutex::new((None, None, false));
+static STATUS_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// True once the first battery and Wi-Fi answer has arrived.
+pub fn status_ready() -> bool {
+    STATUS_READY.load(std::sync::atomic::Ordering::Relaxed)
+}
 
 fn refresh_status() {
     {
@@ -574,6 +600,7 @@ fn refresh_status() {
         });
         let mut s = STATUS.lock().unwrap();
         *s = (battery, wifi, false);
+        STATUS_READY.store(true, std::sync::atomic::Ordering::Relaxed);
     });
 }
 pub fn battery() -> Option<(u8, String)> {
@@ -636,6 +663,15 @@ mod tests {
         assert_eq!(v.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), ["Editor", "Paint Pro"]);
         assert_eq!(v[0].size, 0);
         assert!(parse_installed("").is_empty());
+    }
+
+    #[test]
+    fn a_fresh_file_keeps_its_folder() {
+        let dir = std::env::temp_dir().join(format!("cleanerio-test-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("deep")).unwrap();
+        std::fs::write(dir.join("deep/new.txt"), "x").unwrap();
+        assert!(!untouched_for_a_day(&dir));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

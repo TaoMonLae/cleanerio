@@ -450,7 +450,9 @@ impl CleanerApp {
             self.net_rate = (tx as f64 / dt, rx as f64 / dt);
             self.net_at = Instant::now();
         }
-        if force || self.last_slow.is_none_or(|t| t.elapsed() > Duration::from_secs(30)) {
+        let waiting = crate::windows::ON && !crate::windows::status_ready();
+        let every = if waiting { 1 } else { 30 };
+        if force || self.last_slow.is_none_or(|t| t.elapsed() > Duration::from_secs(every)) {
             self.last_slow = Some(Instant::now());
             self.battery = scan::battery();
             self.wifi = scan::wifi_name();

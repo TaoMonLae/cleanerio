@@ -31,7 +31,11 @@ echo "Building Cleanerio $VERSION for Linux ($ARCH)…"
 if command -v cargo-zigbuild >/dev/null; then
   cargo zigbuild --release --target "$ARCH-unknown-linux-gnu.2.31"
   BIN="$TARGET_DIR/$ARCH-unknown-linux-gnu/release/cleanerio"
+  GLIBC=2.31
 else
+  # built against this system's C library, so it needs one at least as new
+  GLIBC=$(ldd --version | head -1 | grep -o '[0-9]*\.[0-9]*$')
+  echo "cargo-zigbuild isn't installed: this build needs glibc $GLIBC or later."
   cargo build --release
   BIN="$TARGET_DIR/release/cleanerio"
 fi
@@ -90,7 +94,7 @@ Section: utils
 Priority: optional
 Architecture: $DEB_ARCH
 Installed-Size: $SIZE_KB
-Depends: libc6 (>= 2.31), libgcc-s1
+Depends: libc6 (>= $GLIBC), libgcc-s1
 Recommends: libxkbcommon0, libwayland-client0 | libx11-6, libegl1 | libvulkan1, zenity
 Maintainer: Min Htet Min Aung <TaoMonLae@users.noreply.github.com>
 Homepage: https://github.com/TaoMonLae/cleanerio

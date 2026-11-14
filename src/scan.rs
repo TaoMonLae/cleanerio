@@ -321,6 +321,9 @@ pub fn running_bundle_ids() -> HashSet<String> {
 
 /// True when a program inside this app bundle is running.
 pub fn app_is_running(app: &Path) -> bool {
+    if app.as_os_str().is_empty() {
+        return false; // Windows doesn't always record where a program is installed
+    }
     let Ok(mut sys) = sysinfo::System::new() else { return false };
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     sys.processes().values().any(|p| p.exe().is_some_and(|e| e.starts_with(app)))
@@ -1520,6 +1523,26 @@ pub fn trash_dir() -> PathBuf {
 /// Bytes waiting in the Trash.
 pub fn trash_size() -> u64 {
     if crate::windows::ON { crate::windows::recycle_bin_size() } else { dir_size(&trash_dir(), None) }
+}
+
+/// The Trash size for the interface: the last measured value, refreshed on a background
+/// thread so a big Trash never makes the window wait. Only the very first call measures directly.
+pub fn trash_size_cached() -> u64 {
+    static STATE: Mutex<(Option<u64>, bool)> = Mutex::new((None, false));
+    let mut s = STATE.lock().unwrap();
+    let Some(known) = s.0 else {
+        let v = trash_size();
+        s.0 = Some(v);
+        return v;
+    };
+    if !s.1 {
+        s.1 = true;
+        std::thread::spawn(|| {
+            let v = trash_size();
+            *STATE.lock().unwrap() = (Some(v), false);
+        });
+    }
+    known
 }
 
 /// Text for the interface with the system's own name for the Trash.
