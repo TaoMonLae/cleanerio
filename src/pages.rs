@@ -932,7 +932,12 @@ impl CleanerApp {
         }
         if let Some(i) = reset {
             let a = &self.apps.as_ref().unwrap()[i];
-            self.pending = Some(Pending::Trash { title: format!("Reset {}?", a.name), paths: a.chosen() });
+            if scan::app_is_running(&a.path) {
+                let msg = format!("{} is open. Quit it first, then reset it.", a.name);
+                self.toast(msg);
+            } else {
+                self.pending = Some(Pending::Trash { title: format!("Reset {}?", a.name), paths: a.chosen() });
+            }
         }
     }
 
@@ -1381,8 +1386,8 @@ impl CleanerApp {
     pub fn page_tools(&mut self, ui: &mut Ui) {
         self.header(ui, "Handy one-click fixes");
         let accent = Page::Tools.accent();
-        if self.trash_size.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(5)) {
-            self.trash_size = Some((scan::trash_size(), std::time::Instant::now()));
+        if self.trash_size.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(3)) {
+            self.trash_size = Some((scan::trash_size_cached(), std::time::Instant::now()));
         }
         let trash_size = self.trash_size.map(|t| t.0).unwrap_or(0);
         let mut run: Option<usize> = None;
@@ -1476,8 +1481,8 @@ impl CleanerApp {
         let limit = scan::low_disk_limit(self.disk_total);
         let mem = self.mem_used as f32 / self.mem_total as f32;
         let cpu = self.cpu / 100.0;
-        if self.trash_size.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(10)) {
-            self.trash_size = Some((scan::trash_size(), std::time::Instant::now()));
+        if self.trash_size.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(5)) {
+            self.trash_size = Some((scan::trash_size_cached(), std::time::Instant::now()));
         }
         let trash = self.trash_size.map(|t| t.0).unwrap_or(0);
         if self.unused_apps.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(60)) {
@@ -1666,7 +1671,12 @@ fn agent_row(ui: &mut Ui, it: &mut scan::AgentItem) {
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ghost(ui, scan::show_in_files()).clicked() {
-                    reveal(&it.path);
+                    // a startup entry kept in the Windows registry has no file: show its program
+                    if crate::windows::ON && crate::windows::registry_entry(&it.path).is_some() {
+                        reveal(std::path::Path::new(&it.program));
+                    } else {
+                        reveal(&it.path);
+                    }
                 }
             });
         });

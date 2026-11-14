@@ -59,10 +59,32 @@ pub fn is_protected(path: &Path) -> bool {
     SECRETS.iter().any(|d| path.starts_with(h.join(d)))
 }
 
-/// Places the space map never walks into: kernel views, other drives and network shares.
+/// One line of /proc/mounts: (where it is mounted, kind of filesystem, options).
+fn parse_mounts(text: &str) -> Vec<(PathBuf, String, String)> {
+    text.lines()
+        .filter_map(|l| {
+            let mut it = l.split_whitespace();
+            let (_, at, kind, opts) = (it.next()?, it.next()?, it.next()?, it.next()?);
+            // spaces in a mount point are written as \040
+            Some((PathBuf::from(at.replace("\\040", " ")), kind.to_string(), opts.to_string()))
+        })
+        .collect()
+}
+fn mounts() -> &'static Vec<(PathBuf, String, String)> {
+    static MOUNTS: std::sync::OnceLock<Vec<(PathBuf, String, String)>> = std::sync::OnceLock::new();
+    MOUNTS.get_or_init(|| parse_mounts(&std::fs::read_to_string("/proc/mounts").unwrap_or_default()))
+}
+
+/// Network shares and filesystems that aren't a disk at all.
+fn not_a_local_disk(kind: &str) -> bool {
+    const KINDS: &[&str] = &["nfs", "nfs4", "cifs", "smb3", "smbfs", "sshfs", "davfs", "9p", "afs", "ceph", "glusterfs", "proc", "sysfs", "devtmpfs", "tmpfs", "squashfs", "overlay"];
+    KINDS.contains(&kind) || kind.starts_with("fuse.") && !["fuse.ntfs-3g", "fuse.exfat"].contains(&kind) || kind == "fuse"
+}
+
+/// Places the space map never walks into: kernel views, removable drives and network shares.
 pub fn outside_this_disk(path: &Path) -> bool {
     const SKIP: &[&str] = &["/proc", "/sys", "/dev", "/run", "/mnt", "/media", "/snap", "/net"];
-    SKIP.iter().any(|s| path == Path::new(s))
+    SKIP.iter().any(|s| path == Path::new(s)) || mounts().iter().any(|m| m.0 == path && path != Path::new("/") && not_a_local_disk(&m.1))
 }
 
 // ---------------------------------------------------------------- running programs
@@ -310,20 +332,19 @@ fn desktop_entries() -> Vec<Entry> {
     by_id.into_values().collect()
 }
 
-/// True when access times on the home disk are switched off, so "last opened" can't be known.
-fn access_times_off() -> bool {
-    std::fs::read_to_string("/proc/mounts").is_ok_and(|m| {
-        m.lines().any(|l| {
-            let mut it = l.split_whitespace();
-            let (_, at, _, opts) = (it.next(), it.next(), it.next(), it.next().unwrap_or(""));
-            at == Some("/") && opts.split(',').any(|o| o == "noatime")
-        })
-    })
+/// True when the disk holding this file has access times switched off, so "last opened"
+/// can't be known. The disk is the mount point closest above the file.
+fn access_times_off(path: &Path, mounts: &[(PathBuf, String, String)]) -> bool {
+    mounts
+        .iter()
+        .filter(|m| path.starts_with(&m.0))
+        .max_by_key(|m| m.0.as_os_str().len())
+        .is_some_and(|m| m.2.split(',').any(|o| o == "noatime"))
 }
 
 /// Days since the program was last started, by its access time. 0 when that can't be known.
-fn program_idle_days(program: Option<&PathBuf>, no_atime: bool) -> u64 {
-    if no_atime {
+fn program_idle_days(program: Option<&PathBuf>) -> u64 {
+    if program.is_none_or(|p| access_times_off(p, mounts())) {
         return 0;
     }
     program.and_then(|p| std::fs::metadata(p).ok()).and_then(|m| m.accessed().ok().max(m.modified().ok())).map(crate::scan::days_since).unwrap_or(0)
@@ -390,7 +411,6 @@ pub fn scan_apps(p: &Progress) -> Vec<AppInfo> {
     let h = home();
     let lib: Vec<PathBuf> = LEFTOVER_DIRS.iter().flat_map(|d| children(&h.join(d))).filter(|c| !is_protected(c)).collect();
     let entries = desktop_entries();
-    let no_atime = access_times_off();
     let system: Vec<PathBuf> = entries.iter().map(|e| e.file.clone()).filter(|f| f.starts_with("/usr")).collect();
     p.set("Asking the package manager…");
     let packages = package_info(&system);
@@ -440,7 +460,7 @@ pub fn scan_apps(p: &Progress) -> Vec<AppInfo> {
             size = std::fs::metadata(prog).map(|m| m.len()).unwrap_or(0);
             version = String::new();
             managed = None;
-            idle = program_idle_days(Some(prog), no_atime);
+            idle = program_idle_days(Some(prog));
             if e.file.starts_with(&h) && !leftovers.contains(&e.file) {
                 leftovers.push(e.file.clone());
             }
@@ -455,7 +475,7 @@ pub fn scan_apps(p: &Progress) -> Vec<AppInfo> {
                 None if path.starts_with(&h) => "Installed by hand in your home folder. Remove its folder yourself.".to_string(),
                 None => "Installed for the whole computer. Remove it with your software manager.".to_string(),
             });
-            idle = program_idle_days(e.program.as_ref(), no_atime);
+            idle = program_idle_days(e.program.as_ref());
         }
         let leftovers: Vec<(PathBuf, u64)> = leftovers.into_iter().map(|l| {
             let s = dir_size(&l, None);
@@ -477,7 +497,7 @@ pub fn scan_apps(p: &Progress) -> Vec<AppInfo> {
             }).collect();
             let skip = leftovers.iter().map(|l| l.0.clone()).collect();
             let size = std::fs::metadata(&f).map(|m| m.len()).unwrap_or(0);
-            let idle = program_idle_days(Some(&f), no_atime);
+            let idle = program_idle_days(Some(&f));
             out.push(AppInfo { name, path: f, bundle_id: String::new(), version: String::new(), size, leftovers, skip, last_used_days: idle, managed: None });
         }
     }
@@ -487,11 +507,10 @@ pub fn scan_apps(p: &Progress) -> Vec<AppInfo> {
 
 /// How many apps there are and which were not started for a long time (for the Smart Scan).
 pub fn apps_summary() -> (usize, Vec<String>) {
-    let no_atime = access_times_off();
     let entries = desktop_entries();
     let unused = entries
         .iter()
-        .filter(|e| program_idle_days(e.program.as_ref(), no_atime) > crate::pages::UNUSED_APP_DAYS)
+        .filter(|e| program_idle_days(e.program.as_ref()) > crate::pages::UNUSED_APP_DAYS)
         .map(|e| e.name.clone())
         .collect();
     (entries.len(), unused)
@@ -668,6 +687,15 @@ mod tests {
         for p in [h.join(".cache/mozilla"), h.join(".config/Code"), h.join("Downloads/old.deb"), h.join("Applications/Paint.AppImage"), h.join(".config/autostart/x.desktop")] {
             assert!(!is_protected(&p), "{} should not be protected", p.display());
         }
+    }
+
+    #[test]
+    fn mounts_decide_what_is_skipped_and_dated() {
+        let m = parse_mounts("/dev/sda2 / ext4 rw,relatime 0 0\n/dev/sdb1 /home ext4 rw,noatime 0 0\nserver:/x /home/me/share nfs4 rw 0 0\n");
+        assert!(access_times_off(Path::new("/home/me/Applications/Paint.AppImage"), &m));
+        assert!(!access_times_off(Path::new("/usr/bin/vim"), &m));
+        assert!(not_a_local_disk("nfs4") && not_a_local_disk("fuse.sshfs"));
+        assert!(!not_a_local_disk("ext4") && !not_a_local_disk("fuse.ntfs-3g"));
     }
 
     #[test]

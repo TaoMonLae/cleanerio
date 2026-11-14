@@ -321,6 +321,9 @@ pub fn running_bundle_ids() -> HashSet<String> {
 
 /// True when a program inside this app bundle is running.
 pub fn app_is_running(app: &Path) -> bool {
+    if app.as_os_str().is_empty() {
+        return false; // Windows doesn't always record where a program is installed
+    }
     let Ok(mut sys) = sysinfo::System::new() else { return false };
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     sys.processes().values().any(|p| p.exe().is_some_and(|e| e.starts_with(app)))
@@ -1522,6 +1525,26 @@ pub fn trash_size() -> u64 {
     if crate::windows::ON { crate::windows::recycle_bin_size() } else { dir_size(&trash_dir(), None) }
 }
 
+/// The Trash size for the interface: the last measured value, refreshed on a background
+/// thread so a big Trash never makes the window wait. Only the very first call measures directly.
+pub fn trash_size_cached() -> u64 {
+    static STATE: Mutex<(Option<u64>, bool)> = Mutex::new((None, false));
+    let mut s = STATE.lock().unwrap();
+    let Some(known) = s.0 else {
+        let v = trash_size();
+        s.0 = Some(v);
+        return v;
+    };
+    if !s.1 {
+        s.1 = true;
+        std::thread::spawn(|| {
+            let v = trash_size();
+            *STATE.lock().unwrap() = (Some(v), false);
+        });
+    }
+    known
+}
+
 /// Text for the interface with the system's own name for the Trash.
 pub fn words(text: &str) -> String {
     if crate::windows::ON { text.replace("Trash", "Recycle Bin") } else { text.to_string() }
@@ -1587,8 +1610,13 @@ mod tests {
     fn judges() {
         assert!(judge("com.pirrit.agent", "", "").0 == Verdict::Threat);
         assert!(judge("com.x.y", "/tmp/abc", "").0 == Verdict::Review);
-        assert!(judge("com.x.y", "/Users/me/.hidden/run", "").0 == Verdict::Review);
-        assert!(judge("com.x.y", "/usr/bin/true", "").0 == Verdict::Ok);
+        if crate::windows::ON {
+            assert!(judge("Updater", "C:\\Users\\me\\AppData\\Local\\Temp\\upd.exe", "").0 == Verdict::Review);
+            assert!(judge("Updater", "C:\\Windows\\System32\\cmd.exe", "").0 == Verdict::Ok);
+        } else {
+            assert!(judge("com.x.y", "/Users/me/.hidden/run", "").0 == Verdict::Review);
+            assert!(judge("com.x.y", "/usr/bin/true", "").0 == Verdict::Ok);
+        }
     }
 
     #[test]
@@ -1605,6 +1633,7 @@ mod tests {
         assert!(r.removed.is_empty() && r.failed.len() == 1);
     }
 
+    #[cfg(unix)] // Windows gives no cheap way to tell that two names are one file
     #[test]
     fn hard_links_are_not_duplicates() {
         let d = std::env::temp_dir().join(format!("cleanerio-link-{}", std::process::id()));
