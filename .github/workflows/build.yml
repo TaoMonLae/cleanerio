@@ -62,6 +62,10 @@ jobs:
             msg=$(tail -25 pack.txt | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g'); echo "::error::$msg"
           fi
           ls -la dist || true
+          # all three kinds must be there, or the release would silently miss one
+          for kind in tar.gz deb AppImage; do
+            ls dist/*."$kind" >/dev/null 2>&1 || { echo "::error::no .$kind package was made"; code=1; }
+          done
           exit "$code"
 
       - name: Package (Windows)
@@ -75,6 +79,9 @@ jobs:
             msg=$(tail -25 pack.txt | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g'); echo "::error::$msg"
           fi
           ls -la dist || true
+          for kind in x64.zip x64-setup.exe; do
+            ls dist/Cleanerio-*-windows-"$kind" >/dev/null 2>&1 || { echo "::error::no $kind was made"; code=1; }
+          done
           exit "$code"
 
       - name: Keep the Linux packages
