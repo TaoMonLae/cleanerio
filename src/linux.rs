@@ -540,11 +540,11 @@ pub fn empty_trash() -> Result<(), String> {
 
 pub fn tasks() -> Vec<Task> {
     vec![
-        Task { title: "Free up memory", desc: "Rarely needed: Linux manages memory well on its own.", icon: "🧠", admin: true, cmd: "sync; echo 3 > /proc/sys/vm/drop_caches", selected: false, last: None },
-        Task { title: "Flush DNS cache", desc: "Fixes websites that won't load after network changes.", icon: "🌐", admin: true, cmd: "resolvectl flush-caches", selected: false, last: None },
-        Task { title: "Trim the system journal", desc: "Keeps the last two weeks of system logs and erases older entries for good.", icon: "📄", admin: true, cmd: "journalctl --vacuum-time=2weeks", selected: false, last: None },
-        Task { title: "Rebuild the font cache", desc: "Fixes fonts that are missing or show as boxes after installing new ones.", icon: "🔤", admin: false, cmd: "fc-cache -f", selected: false, last: None },
-        Task { title: "Refresh the app menu", desc: "Fixes missing or duplicate entries in the app menu and in “Open With”.", icon: "📋", admin: false, cmd: "update-desktop-database \"${XDG_DATA_HOME:-$HOME/.local/share}/applications\"", selected: true, last: None },
+        Task { title: "Free up memory", desc: "Rarely needed: Linux manages memory well on its own.", admin: true, cmd: "sync; echo 3 > /proc/sys/vm/drop_caches", selected: false, last: None },
+        Task { title: "Flush DNS cache", desc: "Fixes websites that won't load after network changes.", admin: true, cmd: "resolvectl flush-caches", selected: false, last: None },
+        Task { title: "Trim the system journal", desc: "Keeps the last two weeks of system logs and erases older entries for good.", admin: true, cmd: "journalctl --vacuum-time=2weeks", selected: false, last: None },
+        Task { title: "Rebuild the font cache", desc: "Fixes fonts that are missing or show as boxes after installing new ones.", admin: false, cmd: "fc-cache -f", selected: false, last: None },
+        Task { title: "Refresh the app menu", desc: "Fixes missing or duplicate entries in the app menu and in “Open With”.", admin: false, cmd: "update-desktop-database \"${XDG_DATA_HOME:-$HOME/.local/share}/applications\"", selected: true, last: None },
     ]
 }
 

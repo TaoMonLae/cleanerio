@@ -19,8 +19,8 @@
 
 | Section | What you get |
 |---|---|
-| **Smart Scan** | One pass for junk, threats and slow-downs |
-| **Cleanup** | Caches, logs, developer leftovers, AI tool clutter, mail downloads, old installers, device backups, Trash |
+| **Smart Scan** | One pass for junk, threats and slow-downs. Tick which parts Run acts on, or review each card |
+| **Cleanup** | A review screen with categories on the left and items on the right: search, sort, tick or ignore. Caches, logs, developer leftovers, AI tool clutter, mail downloads, old installers, device backups, Trash |
 | **Protection** | Checks login agents, apps, browser extensions and running programs against a threat list. On a Mac: browser privacy traces, saved Wi-Fi networks and app permissions |
 | **Performance** | Maintenance tasks, login items, background items, apps using the most memory |
 | **Applications** | Uninstall apps together with the files they leave behind. On a Mac: check for app updates and find leftovers of deleted apps |
@@ -28,6 +28,7 @@
 | **Space Map** | A bubble map of what fills each folder |
 | **Cloud Files** | Free local copies of iCloud Drive files |
 | **Quick Tools** | One-click fixes, a duplicate finder, screen cleaning mode, and on a Mac a list of open browser tabs |
+| **Settings** | What Smart Scan's Run does, when Activity warns you, and an ignore list of folders Cleanerio leaves alone |
 | **Activity** | Mac health and a history of what was cleaned |
 
 ## Screenshots

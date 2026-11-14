@@ -230,6 +230,14 @@ pub struct CleanerApp {
     pub wifi_list: Option<Vec<String>>,
     /// A "forget this network" request waiting for the password window: (name, outcome).
     pub wifi_job: Option<Job<(String, Result<(), String>)>>,
+    pub settings: crate::settings::Settings,
+    pub settings_open: bool,
+    pub settings_tab: usize,
+    pub ignore_input: String,
+    pub clean_sel: usize,
+    pub clean_query: String,
+    pub clean_sort: usize,
+    pub ignore_pending: bool,
     pub perms: Option<Result<Vec<(String, String, bool)>, String>>,
     pub apps_tab: usize,
     pub updates: Option<Vec<crate::extra::AppUpdate>>,
@@ -265,8 +273,6 @@ pub struct CleanerApp {
     pub big: Option<Vec<BigFile>>,
     pub dups: Option<Vec<DupGroup>>,
     pub downloads: Option<Vec<BigFile>>,
-    pub big_min_mb: u64,
-    pub big_old_only: bool,
     pub big_size_group: usize,
     pub big_age_group: usize,
     pub big_kind: String,
@@ -376,6 +382,14 @@ impl CleanerApp {
             privacy_job: None,
             wifi_list: None,
             wifi_job: None,
+            settings: crate::settings::Settings::load(),
+            settings_open: std::env::var("CLEANERIO_SETTINGS").is_ok(),
+            settings_tab: std::env::var("CLEANERIO_TAB").ok().and_then(|t| t.parse().ok()).unwrap_or(0),
+            ignore_input: String::new(),
+            clean_sel: 0,
+            clean_query: String::new(),
+            clean_sort: 0,
+            ignore_pending: false,
             perms: None,
             apps_tab: 0,
             updates: None,
@@ -409,8 +423,6 @@ impl CleanerApp {
             big: None,
             dups: None,
             downloads: None,
-            big_min_mb: 50,
-            big_old_only: false,
             big_size_group: 0,
             big_age_group: 0,
             big_kind: "All".into(),
@@ -540,6 +552,7 @@ impl CleanerApp {
                 }
             )* };
         }
+        let waiting = (self.smart_job.is_some(), self.junk_job.is_some(), self.clutter_job.is_some());
         drop_failed!(self; smart_job, junk_job, agents_job, login_job, task_job, apps_job, clutter_job, space_job, cloud_job, action_job);
         // a scan the person stopped: its half-finished result is not shown as if complete
         macro_rules! drop_stopped {
@@ -598,6 +611,7 @@ impl CleanerApp {
             self.apps_job = None;
             self.apps = Some(r);
         }
+        self.ignore_pending |= waiting != (self.smart_job.is_some(), self.junk_job.is_some(), self.clutter_job.is_some());
         if let Some(r) = self.clutter_job.as_ref().and_then(|j| j.take()) {
             self.clutter_job = None;
             self.big = Some(r.big);
@@ -776,6 +790,20 @@ impl CleanerApp {
                 clicked = Some(page);
             }
             y += row_h;
+        }
+        if rect.bottom() - 84.0 - row_h > y {
+            let r = Rect::from_min_size(Pos2::new(rect.left() + 10.0, rect.bottom() - 84.0 - row_h), Vec2::new(rect.width() - 20.0, row_h - 2.0));
+            let resp = ui.interact(r, ui.scope_id().with("nav_settings"), Sense::click());
+            if self.settings_open {
+                p.rect_filled(r, 10.0, TINT);
+            } else if resp.hovered() {
+                p.rect_filled(r, 10.0, ink(10));
+            }
+            art::glyph(&p, Glyph::Wrench, Rect::from_center_size(Pos2::new(r.left() + 22.0, r.center().y), Vec2::splat(20.0)), BODY);
+            p.text(Pos2::new(r.left() + 44.0, r.center().y), Align2::LEFT_CENTER, "Settings", FontId::proportional(14.5), TEXT);
+            if resp.clicked() {
+                self.settings_open = true;
+            }
         }
         // the startup disk, always in view
         if rect.bottom() - 84.0 > y {
@@ -1060,6 +1088,9 @@ impl eframe::App for CleanerApp {
         let ctx = ui.ctx().clone();
         self.frames += 1;
         self.poll();
+        if std::mem::take(&mut self.ignore_pending) {
+            self.apply_ignore();
+        }
         self.refresh_system(false);
         if self.busy() {
             ctx.request_repaint_after(Duration::from_millis(100));
@@ -1118,6 +1149,7 @@ impl eframe::App for CleanerApp {
             self.screen_cleaning_overlay(ui);
             ctx.request_repaint();
         }
+        self.settings_window(&ctx);
         self.confirm_dialog(&ctx);
         self.autoscan_for_tests();
         self.handle_screenshot(&ctx);

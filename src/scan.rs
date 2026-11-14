@@ -432,9 +432,7 @@ pub struct JunkGroup {
     pub kind: JunkKind,
     pub title: &'static str,
     pub desc: &'static str,
-    pub icon: &'static str,
     pub items: Vec<JunkItem>,
-    pub expanded: bool,
     pub note: Option<String>,
 }
 
@@ -505,9 +503,7 @@ fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Caches,
         title: "Cache files",
         desc: "Temporary files apps keep to load faster. Apps rebuild them when needed.",
-        icon: "🗄",
         items,
-        expanded: false,
         note,
     });
 
@@ -519,9 +515,7 @@ fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Logs,
         title: "Log files",
         desc: "Records of app activity that are mostly useful for troubleshooting.",
-        icon: "📄",
         items,
-        expanded: false,
         note,
     });
 
@@ -536,9 +530,7 @@ fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Developer,
         title: "Developer junk",
         desc: "Downloaded packages that coding tools fetch again when a project needs them.",
-        icon: "🛠",
         items,
-        expanded: false,
         note,
     });
 
@@ -556,9 +548,7 @@ fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Installers,
         title: "Old installers",
         desc: "Package files and disk images left in Downloads or on the Desktop.",
-        icon: "💿",
         items,
-        expanded: false,
         note,
     });
 
@@ -568,9 +558,7 @@ fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Trash,
         title: "Trash",
         desc: "Files you already moved to the Trash. Emptying it frees the space for good.",
-        icon: "🗑",
         items,
-        expanded: false,
         note,
     });
     groups
@@ -599,9 +587,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Caches,
         title: "Cache files",
         desc: "Temporary files apps keep to load faster. Apps rebuild them when needed.",
-        icon: "🗄",
         items,
-        expanded: false,
         note,
     });
 
@@ -611,9 +597,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Logs,
         title: "Log files",
         desc: "Records of app activity that are mostly useful for troubleshooting.",
-        icon: "📄",
         items,
-        expanded: false,
         note,
     });
 
@@ -637,9 +621,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Developer,
         title: "Developer junk",
         desc: "Build products and device support files that coding tools can regenerate.",
-        icon: "🛠",
         items,
-        expanded: false,
         note,
     });
 
@@ -657,9 +639,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Mail,
         title: "Mail downloads",
         desc: "Copies of email attachments you opened. The originals stay in your mail.",
-        icon: "✉",
         items,
-        expanded: false,
         note,
     });
 
@@ -677,9 +657,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Installers,
         title: "Old installers",
         desc: "Disk images and installer packages left in Downloads or on the Desktop.",
-        icon: "💿",
         items,
-        expanded: false,
         note,
     });
 
@@ -688,9 +666,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Ai,
         title: "AI clutter",
         desc: "Caches, logs and old versions left by AI tools. Downloaded local models are listed but not ticked.",
-        icon: "",
         items: crate::extra::ai_clutter(p),
-        expanded: false,
         note: None,
     });
 
@@ -700,9 +676,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Backups,
         title: "iPhone and iPad backups",
         desc: "Local backups of your devices. Keep the newest if you rely on it.",
-        icon: "",
         items,
-        expanded: false,
         note,
     });
 
@@ -711,9 +685,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::BrokenPrefs,
         title: "Broken preferences",
         desc: "Settings files that can't be read anymore. Apps make fresh ones when needed.",
-        icon: "",
         items: crate::extra::broken_prefs(p),
-        expanded: false,
         note: None,
     });
 
@@ -729,9 +701,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Trash,
         title: "Trash",
         desc: "Files you already moved to the Trash. Emptying it frees the space for good.",
-        icon: "🗑",
         items,
-        expanded: false,
         note,
     });
     groups
@@ -1163,7 +1133,6 @@ pub fn empty_trash(p: &Progress, size: u64) -> ActionReport {
 pub struct Task {
     pub title: &'static str,
     pub desc: &'static str,
-    pub icon: &'static str,
     pub admin: bool,
     pub cmd: &'static str,
     pub selected: bool,
@@ -1181,16 +1150,16 @@ pub fn tasks() -> Vec<Task> {
         return crate::windows::tasks();
     }
     vec![
-        Task { title: "Free up memory", desc: "Rarely needed: macOS manages memory well on its own.", icon: "🧠", admin: true, cmd: "purge", selected: false, last: None },
-        Task { title: "Flush DNS cache", desc: "Fixes websites that won't load after network changes.", icon: "🌐", admin: true, cmd: "dscacheutil -flushcache; killall -HUP mDNSResponder", selected: false, last: None },
-        Task { title: "Reindex Spotlight", desc: "Rebuilds the search index. Search is slow for an hour or more while it works.", icon: "🔍", admin: true, cmd: "mdutil -E /", selected: false, last: None },
-        Task { title: "Rebuild Launch Services", desc: "Fixes duplicate entries in “Open With” menus. May do little on recent macOS.", icon: "📋", admin: false, cmd: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user", selected: false, last: None },
-        Task { title: "Clear Quick Look cache", desc: "Refreshes file previews that show the wrong picture.", icon: "👁", admin: false, cmd: "qlmanage -r cache", selected: true, last: None },
-        Task { title: "Free up purgeable space", desc: "Thins the local snapshots macOS keeps, so space it holds back becomes free.", icon: "", admin: true, cmd: "tmutil thinlocalsnapshots / 999999999999 4", selected: false, last: None },
-        Task { title: "Thin Time Machine snapshots", desc: "Deletes the local Time Machine snapshots on this disk. Backups on your backup drive stay.", icon: "", admin: true, cmd: "tmutil deletelocalsnapshots /", selected: false, last: None },
-        Task { title: "Speed up Mail", desc: "Compacts Mail's message index so searching and opening mail is quicker. Quit Mail first.", icon: "", admin: false, cmd: "if pgrep -x Mail >/dev/null; then echo 'Quit Mail first' >&2; exit 1; fi; for f in ~/Library/Mail/V*/MailData/'Envelope Index'; do [ -f \"$f\" ] && sqlite3 \"$f\" vacuum; done", selected: false, last: None },
-        Task { title: "Repair disk permissions", desc: "Resets the permissions of your home folder's files to what macOS expects.", icon: "", admin: false, cmd: "diskutil resetUserPermissions / $(id -u)", selected: false, last: None },
-        Task { title: "Restart Dock and Finder", desc: "Fixes a stuck Dock or Finder window without logging out.", icon: "🔄", admin: false, cmd: "killall Dock; killall Finder", selected: false, last: None },
+        Task { title: "Free up memory", desc: "Rarely needed: macOS manages memory well on its own.", admin: true, cmd: "purge", selected: false, last: None },
+        Task { title: "Flush DNS cache", desc: "Fixes websites that won't load after network changes.", admin: true, cmd: "dscacheutil -flushcache; killall -HUP mDNSResponder", selected: false, last: None },
+        Task { title: "Reindex Spotlight", desc: "Rebuilds the search index. Search is slow for an hour or more while it works.", admin: true, cmd: "mdutil -E /", selected: false, last: None },
+        Task { title: "Rebuild Launch Services", desc: "Fixes duplicate entries in “Open With” menus. May do little on recent macOS.", admin: false, cmd: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user", selected: false, last: None },
+        Task { title: "Clear Quick Look cache", desc: "Refreshes file previews that show the wrong picture.", admin: false, cmd: "qlmanage -r cache", selected: true, last: None },
+        Task { title: "Free up purgeable space", desc: "Thins the local snapshots macOS keeps, so space it holds back becomes free.", admin: true, cmd: "tmutil thinlocalsnapshots / 999999999999 4", selected: false, last: None },
+        Task { title: "Thin Time Machine snapshots", desc: "Deletes the local Time Machine snapshots on this disk. Backups on your backup drive stay.", admin: true, cmd: "tmutil deletelocalsnapshots /", selected: false, last: None },
+        Task { title: "Speed up Mail", desc: "Compacts Mail's message index so searching and opening mail is quicker. Quit Mail first.", admin: false, cmd: "if pgrep -x Mail >/dev/null; then echo 'Quit Mail first' >&2; exit 1; fi; for f in ~/Library/Mail/V*/MailData/'Envelope Index'; do [ -f \"$f\" ] && sqlite3 \"$f\" vacuum; done", selected: false, last: None },
+        Task { title: "Repair disk permissions", desc: "Resets the permissions of your home folder's files to what macOS expects.", admin: false, cmd: "diskutil resetUserPermissions / $(id -u)", selected: false, last: None },
+        Task { title: "Restart Dock and Finder", desc: "Fixes a stuck Dock or Finder window without logging out.", admin: false, cmd: "killall Dock; killall Finder", selected: false, last: None },
     ]
 }
 
@@ -1419,6 +1388,7 @@ pub fn scan_downloads(p: &Progress) -> Vec<BigFile> {
 
 // ---------------------------------------------------------------- cloud
 
+#[allow(dead_code)]
 pub struct CloudFolder {
     pub name: String,
     pub path: PathBuf,

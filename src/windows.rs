@@ -154,7 +154,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
     let running = crate::linux::running_names();
     let is_running = |names: &[&str]| names.iter().any(|n| running.contains(*n) || running.contains(&format!("{n}.exe")));
     let mut groups = vec![];
-    let group = |kind, title, desc, items: Vec<JunkItem>| JunkGroup { kind, title, desc, icon: "", items, expanded: false, note: None };
+    let group = |kind, title, desc, items: Vec<JunkItem>| JunkGroup { kind, title, desc, items, note: None };
 
     p.set("Looking for temporary files…");
     // files a running program made today are left alone
@@ -515,11 +515,11 @@ pub fn apps_summary() -> (usize, Vec<String>) {
 
 pub fn tasks() -> Vec<Task> {
     vec![
-        Task { title: "Flush DNS cache", desc: "Fixes websites that won't load after network changes.", icon: "", admin: false, cmd: "ipconfig /flushdns", selected: true, last: None },
-        Task { title: "Rebuild the icon cache", desc: "Fixes icons that are blank or show the wrong picture.", icon: "", admin: false, cmd: "ie4uinit.exe -show", selected: false, last: None },
-        Task { title: "Restart Explorer", desc: "Fixes a stuck taskbar, Start menu or folder window without signing out.", icon: "", admin: false, cmd: "taskkill /F /IM explorer.exe & start explorer.exe", selected: false, last: None },
-        Task { title: "Clean up Windows Update files", desc: "Removes old versions of updated system files for good. Can take several minutes.", icon: "", admin: true, cmd: "Dism.exe /Online /Cleanup-Image /StartComponentCleanup", selected: false, last: None },
-        Task { title: "Check system files", desc: "Looks for damaged Windows files and repairs them. Can take ten minutes or more.", icon: "", admin: true, cmd: "sfc /scannow", selected: false, last: None },
+        Task { title: "Flush DNS cache", desc: "Fixes websites that won't load after network changes.", admin: false, cmd: "ipconfig /flushdns", selected: true, last: None },
+        Task { title: "Rebuild the icon cache", desc: "Fixes icons that are blank or show the wrong picture.", admin: false, cmd: "ie4uinit.exe -show", selected: false, last: None },
+        Task { title: "Restart Explorer", desc: "Fixes a stuck taskbar, Start menu or folder window without signing out.", admin: false, cmd: "taskkill /F /IM explorer.exe & start explorer.exe", selected: false, last: None },
+        Task { title: "Clean up Windows Update files", desc: "Removes old versions of updated system files for good. Can take several minutes.", admin: true, cmd: "Dism.exe /Online /Cleanup-Image /StartComponentCleanup", selected: false, last: None },
+        Task { title: "Check system files", desc: "Looks for damaged Windows files and repairs them. Can take ten minutes or more.", admin: true, cmd: "sfc /scannow", selected: false, last: None },
     ]
 }
 

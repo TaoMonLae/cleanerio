@@ -12,11 +12,6 @@ use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Pos2, RichText,
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-fn empty_note(ui: &mut Ui, text: &str) {
-    ui.add_space(30.0);
-    ui.vertical_centered(|ui| ui.label(RichText::new(text).size(16.0).color(MUTED)));
-}
-
 impl CleanerApp {
     // ------------------------------------------------------------------ my files: similar pictures
 
@@ -449,12 +444,12 @@ impl CleanerApp {
         let Some((start, clicks)) = self.screen_clean else { return false };
         let ctx = ui.ctx().clone();
         let r = ctx.content_rect();
-        let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("screen_clean")));
+        let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("screen_clean")));
         p.rect_filled(r, 0.0, Color32::BLACK);
         if start.elapsed().as_secs() < 4 {
             p.text(r.center(), Align2::CENTER_CENTER, "Wipe your screen. Click three times or press Esc to finish.", FontId::proportional(18.0), Color32::from_gray(90));
         }
-        let resp = ui.interact(r, egui::Id::new("screen_clean_click"), Sense::click());
+        let resp = ui.interact(r, egui::Id::unique("screen_clean_click"), Sense::click());
         let mut n = clicks;
         if resp.clicked() {
             n += 1;
