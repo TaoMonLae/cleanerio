@@ -37,7 +37,8 @@ own Developer ID; without one the script still builds an unsigned app.
 Cleanerio touches people's files, so a few rules are not negotiable:
 
 1. Nothing is deleted directly. Files go to the Trash, where they can be put back.
-2. Nothing leaves the Mac. No network calls, no analytics.
+2. Nothing leaves the computer. No analytics, and no network calls except the app updater,
+   which runs only when the person asks and only fetches version numbers.
 3. Protected locations (see `is_protected` in `src/scan.rs`) are never offered for removal.
 4. Every removal is confirmed by the person first, with the size shown.
 5. Nothing runs with administrator rights.

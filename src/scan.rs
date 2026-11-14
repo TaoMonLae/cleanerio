@@ -412,6 +412,9 @@ pub enum JunkKind {
     Installers,
     Mail,
     Trash,
+    Ai,
+    Backups,
+    BrokenPrefs,
 }
 
 #[derive(Clone)]
@@ -615,16 +618,21 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
     });
 
     p.set("Looking for developer leftovers…");
-    let (items, note) = junk_items(
+    let (mut items, note) = junk_items(
         &[
             h.join("Library/Developer/Xcode/DerivedData"),
             h.join("Library/Developer/Xcode/iOS DeviceSupport"),
             h.join("Library/Developer/CoreSimulator/Caches"),
+            h.join("Library/Developer/Xcode/iOS Device Logs"),
         ],
         |_| true,
         true,
         p,
     );
+    // Archives hold the builds and debug symbols of apps already shipped. Xcode can't make
+    // them again, so they are listed but never ticked.
+    let (archives, _) = junk_items(&[h.join("Library/Developer/Xcode/Archives")], |_| true, false, p);
+    items.extend(archives);
     groups.push(JunkGroup {
         kind: JunkKind::Developer,
         title: "Developer junk",
@@ -675,8 +683,48 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         note,
     });
 
+    p.set("Looking for AI clutter…");
+    groups.push(JunkGroup {
+        kind: JunkKind::Ai,
+        title: "AI clutter",
+        desc: "Caches, logs and old versions left by AI tools. Downloaded local models are listed but not ticked.",
+        icon: "",
+        items: crate::extra::ai_clutter(p),
+        expanded: false,
+        note: None,
+    });
+
+    p.set("Looking for phone backups…");
+    let (items, note) = junk_items(&[h.join("Library/Application Support/MobileSync/Backup")], |_| true, false, p);
+    groups.push(JunkGroup {
+        kind: JunkKind::Backups,
+        title: "iPhone and iPad backups",
+        desc: "Local backups of your devices. Keep the newest if you rely on it.",
+        icon: "",
+        items,
+        expanded: false,
+        note,
+    });
+
+    p.set("Looking for broken settings files…");
+    groups.push(JunkGroup {
+        kind: JunkKind::BrokenPrefs,
+        title: "Broken preferences",
+        desc: "Settings files that can't be read anymore. Apps make fresh ones when needed.",
+        icon: "",
+        items: crate::extra::broken_prefs(p),
+        expanded: false,
+        note: None,
+    });
+
     p.set("Looking in the Trash…");
-    let (items, note) = junk_items(&[h.join(".Trash")], |_| true, false, p);
+    let mut bins = vec![h.join(".Trash")];
+    // Trash bins on other drives
+    let uid = std::fs::metadata(&h).map(|m| owner_id(&m)).unwrap_or(501);
+    for v in children(Path::new("/Volumes")) {
+        bins.push(v.join(".Trashes").join(uid.to_string()));
+    }
+    let (items, note) = junk_items(&bins, |_| true, false, p);
     groups.push(JunkGroup {
         kind: JunkKind::Trash,
         title: "Trash",
@@ -1122,6 +1170,9 @@ pub struct Task {
     pub last: Option<String>,
 }
 
+/// Smallest file the duplicate finder compares.
+pub const DUPLICATE_MIN_BYTES: u64 = 100_000;
+
 pub fn tasks() -> Vec<Task> {
     if crate::linux::ON {
         return crate::linux::tasks();
@@ -1135,6 +1186,10 @@ pub fn tasks() -> Vec<Task> {
         Task { title: "Reindex Spotlight", desc: "Rebuilds the search index. Search is slow for an hour or more while it works.", icon: "🔍", admin: true, cmd: "mdutil -E /", selected: false, last: None },
         Task { title: "Rebuild Launch Services", desc: "Fixes duplicate entries in “Open With” menus. May do little on recent macOS.", icon: "📋", admin: false, cmd: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user", selected: false, last: None },
         Task { title: "Clear Quick Look cache", desc: "Refreshes file previews that show the wrong picture.", icon: "👁", admin: false, cmd: "qlmanage -r cache", selected: true, last: None },
+        Task { title: "Free up purgeable space", desc: "Thins the local snapshots macOS keeps, so space it holds back becomes free.", icon: "", admin: true, cmd: "tmutil thinlocalsnapshots / 999999999999 4", selected: false, last: None },
+        Task { title: "Thin Time Machine snapshots", desc: "Deletes the local Time Machine snapshots on this disk. Backups on your backup drive stay.", icon: "", admin: true, cmd: "tmutil deletelocalsnapshots /", selected: false, last: None },
+        Task { title: "Speed up Mail", desc: "Compacts Mail's message index so searching and opening mail is quicker. Quit Mail first.", icon: "", admin: false, cmd: "if pgrep -x Mail >/dev/null; then echo 'Quit Mail first' >&2; exit 1; fi; for f in ~/Library/Mail/V*/MailData/'Envelope Index'; do [ -f \"$f\" ] && sqlite3 \"$f\" vacuum; done", selected: false, last: None },
+        Task { title: "Repair disk permissions", desc: "Resets the permissions of your home folder's files to what macOS expects.", icon: "", admin: false, cmd: "diskutil resetUserPermissions / $(id -u)", selected: false, last: None },
         Task { title: "Restart Dock and Finder", desc: "Fixes a stuck Dock or Finder window without logging out.", icon: "🔄", admin: false, cmd: "killall Dock; killall Finder", selected: false, last: None },
     ]
 }
@@ -1280,7 +1335,7 @@ pub fn scan_duplicates(root: PathBuf, p: &Progress) -> Vec<DupGroup> {
                 if !name.ends_with(".app") && !name.ends_with(".photoslibrary") {
                     stack.push(path);
                 }
-            } else if md.len() >= 512 * 1024 {
+            } else if md.len() >= DUPLICATE_MIN_BYTES {
                 if !stored_locally(&md) {
                     continue; // a cloud file that isn't downloaded: reading it would fetch it
                 }
@@ -1548,6 +1603,13 @@ pub fn trash_size_cached() -> u64 {
 /// Text for the interface with the system's own name for the Trash.
 pub fn words(text: &str) -> String {
     if crate::windows::ON { text.replace("Trash", "Recycle Bin") } else { text.to_string() }
+}
+
+/// True on a Mac. The Mac-only screens (privacy items, app permissions, the updater, leftovers
+/// of deleted apps, browser tabs) are shown only then. CLEANERIO_SHOW_MAC=1 shows them
+/// elsewhere, for checking the layout.
+pub fn mac() -> bool {
+    (!crate::linux::ON && !crate::windows::ON) || std::env::var_os("CLEANERIO_SHOW_MAC").is_some()
 }
 
 /// What to call the machine in the interface.

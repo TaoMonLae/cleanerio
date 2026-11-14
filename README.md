@@ -20,14 +20,14 @@
 | Section | What you get |
 |---|---|
 | **Smart Scan** | One pass for junk, threats and slow-downs |
-| **Cleanup** | Caches, logs, developer leftovers, mail downloads, old installers, Trash |
-| **Protection** | Checks login agents, apps, browser extensions and running programs against a threat list |
+| **Cleanup** | Caches, logs, developer leftovers, AI tool clutter, mail downloads, old installers, device backups, Trash |
+| **Protection** | Checks login agents, apps, browser extensions and running programs against a threat list. On a Mac: browser privacy traces, saved Wi-Fi networks and app permissions |
 | **Performance** | Maintenance tasks, login items, background items, apps using the most memory |
-| **Applications** | Uninstall apps together with the files they leave behind |
-| **My Files** | Large and old files, duplicates, downloads |
+| **Applications** | Uninstall apps together with the files they leave behind. On a Mac: check for app updates and find leftovers of deleted apps |
+| **My Files** | Large and old files, duplicates, similar pictures, downloads |
 | **Space Map** | A bubble map of what fills each folder |
 | **Cloud Files** | Free local copies of iCloud Drive files |
-| **Quick Tools** | One-click fixes |
+| **Quick Tools** | One-click fixes, a duplicate finder, screen cleaning mode, and on a Mac a list of open browser tabs |
 | **Activity** | Mac health and a history of what was cleaned |
 
 ## Screenshots
@@ -51,6 +51,7 @@ The screenshots use sample files.
 - Caches of apps that are running are left out until you quit the app.
 - Threats matched by name only, and app leftovers matched by name only, are never ticked for you.
 - "Last opened" comes from the date macOS records, not from file access times.
+- Nothing is sent anywhere. The one feature that uses the internet is the app updater on a Mac, and only when you press "Check for updates": it asks Apple's App Store and each app's own update address for the latest version number.
 
 ## Install
 

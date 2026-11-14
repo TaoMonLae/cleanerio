@@ -120,12 +120,12 @@ impl Page {
             Page::Cleanup => Intro {
                 title: "Cleanup",
                 text: "Clear out caches, logs and leftovers to win back free space.",
-                bullets: if crate::linux::ON || crate::windows::ON { &[(Glyph::Trash, "Caches & Logs"), (Glyph::Download, "Old Installers"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")] } else { &[(Glyph::Trash, "System Junk"), (Glyph::Mail, "Mail Downloads"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")] },
+                bullets: if crate::linux::ON || crate::windows::ON { &[(Glyph::Trash, "Caches & Logs"), (Glyph::Download, "Old Installers"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")] } else { &[(Glyph::Trash, "System Junk"), (Glyph::Sparkles, "AI Clutter"), (Glyph::Mail, "Mail Attachments"), (Glyph::Trash, "Trash Bins")] },
             },
             Page::Protection => Intro {
                 title: "Protection",
                 text: if crate::linux::ON || crate::windows::ON { "Check what starts by itself, your browser extensions and running programs for anything suspicious." } else { "Check your Mac against a database of Mac threats: trojans, adware, spyware and crypto miners." },
-                bullets: &[(Glyph::Bug, "Malware Removal"), (Glyph::Shield, "Suspicious Helpers"), (Glyph::Bolt, "Running Threats")],
+                bullets: if crate::scan::mac() { &[(Glyph::Bug, "Malware Removal"), (Glyph::Shield, "Privacy Check"), (Glyph::Sliders, "App Permissions")] } else { &[(Glyph::Bug, "Malware Removal"), (Glyph::Shield, "Suspicious Helpers"), (Glyph::Bolt, "Running Threats")] },
             },
             Page::Performance => Intro {
                 title: "Performance",
@@ -135,12 +135,12 @@ impl Page {
             Page::Apps => Intro {
                 title: "Applications",
                 text: "See every app and how much room it takes, then remove it cleanly.",
-                bullets: &[(Glyph::Grid, "Uninstaller"), (Glyph::Leftovers, "Leftover Files"), (Glyph::Sliders, "Reset Apps")],
+                bullets: if crate::scan::mac() { &[(Glyph::Grid, "Uninstaller"), (Glyph::Download, "Updater"), (Glyph::Leftovers, "Leftover Files")] } else { &[(Glyph::Grid, "Uninstaller"), (Glyph::Leftovers, "Leftover Files"), (Glyph::Sliders, "Reset Apps")] },
             },
             Page::Clutter => Intro {
                 title: "My Files",
                 text: "Sort through big, old and duplicate files in a few clicks.",
-                bullets: &[(Glyph::Folder, "Large & Old Files"), (Glyph::Copy, "Duplicates"), (Glyph::Download, "Downloads")],
+                bullets: &[(Glyph::Folder, "Large & Old Files"), (Glyph::Copy, "Duplicate Finder"), (Glyph::Lens, "Similar Images"), (Glyph::Download, "Downloads")],
             },
             Page::Space => Intro {
                 title: "Space Map",
@@ -168,6 +168,7 @@ pub struct ClutterResult {
     pub big: Vec<BigFile>,
     pub dups: Vec<DupGroup>,
     pub downloads: Vec<BigFile>,
+    pub similar: Vec<crate::extra::ImageGroup>,
 }
 
 pub enum Pending {
@@ -221,6 +222,24 @@ pub struct CleanerApp {
     pub agents: Option<Vec<AgentItem>>,
     pub agents_job: Option<Job<Vec<AgentItem>>>,
     pub show_ok_agents: bool,
+    // the features in extra.rs
+    pub similar: Option<Vec<crate::extra::ImageGroup>>,
+    pub prot_tab: usize,
+    pub privacy: Option<Vec<crate::extra::PrivacyItem>>,
+    pub privacy_job: Option<Job<Vec<crate::extra::PrivacyItem>>>,
+    pub wifi_list: Option<Vec<String>>,
+    /// A "forget this network" request waiting for the password window: (name, outcome).
+    pub wifi_job: Option<Job<(String, Result<(), String>)>>,
+    pub perms: Option<Result<Vec<(String, String, bool)>, String>>,
+    pub apps_tab: usize,
+    pub updates: Option<Vec<crate::extra::AppUpdate>>,
+    pub updates_job: Option<Job<Vec<crate::extra::AppUpdate>>>,
+    pub orphans: Option<Vec<(String, Vec<(PathBuf, u64)>, bool)>>,
+    pub orphans_job: Option<Job<Vec<(String, Vec<(PathBuf, u64)>)>>>,
+    pub tools_tab: usize,
+    pub tabs_list: Option<Result<Vec<crate::extra::Tab>, String>>,
+    /// Screen cleaning mode: when it started and how many clicks so far.
+    pub screen_clean: Option<(Instant, u32)>,
     /// Threat database: families, signs, date.
     pub db_info: (usize, usize, String),
     // performance
@@ -351,6 +370,21 @@ impl CleanerApp {
             agents: None,
             agents_job: None,
             show_ok_agents: false,
+            similar: None,
+            prot_tab: 0,
+            privacy: None,
+            privacy_job: None,
+            wifi_list: None,
+            wifi_job: None,
+            perms: None,
+            apps_tab: 0,
+            updates: None,
+            updates_job: None,
+            orphans: None,
+            orphans_job: None,
+            tools_tab: 0,
+            tabs_list: None,
+            screen_clean: None,
             db_info: {
                 let db = crate::threats::load();
                 (db.families.len(), db.signatures(), db.updated.clone())
@@ -486,6 +520,9 @@ impl CleanerApp {
             || self.space_job.is_some()
             || self.cloud_job.is_some()
             || self.action_job.is_some()
+            || self.privacy_job.is_some()
+            || self.updates_job.is_some()
+            || self.orphans_job.is_some()
     }
 
     pub fn toast(&mut self, s: impl Into<String>) {
@@ -566,6 +603,7 @@ impl CleanerApp {
             self.big = Some(r.big);
             self.dups = Some(r.dups);
             self.downloads = Some(r.downloads);
+            self.similar = Some(r.similar);
             self.clutter_scanned = true;
         }
         if let Some(r) = self.space_job.as_ref().and_then(|j| j.take()) {
@@ -577,6 +615,18 @@ impl CleanerApp {
         if let Some(r) = self.cloud_job.as_ref().and_then(|j| j.take()) {
             self.cloud_job = None;
             self.cloud = Some(r);
+        }
+        if let Some(r) = self.privacy_job.as_ref().and_then(|j| j.take()) {
+            self.privacy_job = None;
+            self.privacy = Some(r);
+        }
+        if let Some(r) = self.updates_job.as_ref().and_then(|j| j.take()) {
+            self.updates_job = None;
+            self.updates = Some(r);
+        }
+        if let Some(r) = self.orphans_job.as_ref().and_then(|j| j.take()) {
+            self.orphans_job = None;
+            self.orphans = Some(r.into_iter().map(|(id, p)| (id, p, false)).collect());
         }
         if let Some(r) = self.action_job.as_ref().and_then(|j| j.take()) {
             self.action_job = None;
@@ -609,6 +659,21 @@ impl CleanerApp {
                 g.files.retain(|f| !gone.contains(&f.path));
             }
             d.retain(|g| g.files.len() > 1);
+        }
+        if let Some(s) = &mut self.similar {
+            for g in s.iter_mut() {
+                g.files.retain(|f| !gone.contains(&f.path));
+            }
+            s.retain(|g| g.files.len() > 1);
+        }
+        if let Some(pv) = &mut self.privacy {
+            pv.retain(|i| !i.paths.iter().all(|x| gone.contains(x)));
+        }
+        if let Some(o) = &mut self.orphans {
+            for e in o.iter_mut() {
+                e.1.retain(|x| !gone.contains(&x.0));
+            }
+            o.retain(|e| !e.1.is_empty());
         }
         if let Some(c) = &mut self.cloud {
             for f in c.iter_mut() {
@@ -919,6 +984,12 @@ impl CleanerApp {
             return;
         }
         let home = scan::home();
+        if let Some(t) = std::env::var("CLEANERIO_TAB").ok().and_then(|t| t.parse::<usize>().ok()) {
+            self.clutter_tab = t;
+            self.prot_tab = t;
+            self.apps_tab = t;
+            self.tools_tab = t;
+        }
         match self.page {
             Page::Smart => self.smart_job = Some(crate::pages::start_smart()),
             Page::Apps => self.apps_job = Some(Job::spawn(scan::scan_apps)),
@@ -942,7 +1013,9 @@ impl CleanerApp {
             let dups = scan::scan_duplicates(root, p);
             p.stage(2);
             let downloads = scan::scan_downloads(p);
-            ClutterResult { big, dups, downloads }
+            p.stage(3);
+            let similar = crate::extra::similar_images(scan::clutter_roots(), p);
+            ClutterResult { big, dups, downloads, similar }
         }));
     }
 
@@ -1041,6 +1114,10 @@ impl eframe::App for CleanerApp {
             }
         });
 
+        if self.screen_clean.is_some() {
+            self.screen_cleaning_overlay(ui);
+            ctx.request_repaint();
+        }
         self.confirm_dialog(&ctx);
         self.autoscan_for_tests();
         self.handle_screenshot(&ctx);

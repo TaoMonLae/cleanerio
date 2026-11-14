@@ -3,8 +3,10 @@
 
 mod app;
 mod art;
+mod extra;
 mod linux;
 mod pages;
+mod pages2;
 mod scan;
 mod threats;
 mod ui_kit;
