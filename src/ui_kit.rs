@@ -1,6 +1,8 @@
 //! Small drawing helpers shared by every screen.
 
-use eframe::egui::{self, Align2, Color32, FontId, Pos2, Rect, Response, RichText, Sense, Stroke, Ui, Vec2};
+use eframe::egui::{
+    self, Align2, Color32, FontId, Pos2, Rect, Response, RichText, Sense, Stroke, Ui, Vec2,
+};
 
 // The look: a flat, light interface. Colour and depth are saved for the one 3D object on
 // each screen and for the primary action.
@@ -36,11 +38,23 @@ pub fn alpha(c: Color32, a: u8) -> Color32 {
 
 /// Fills a rectangle with a smooth four-corner gradient (a fine grid, so no seams show).
 #[allow(dead_code)]
-pub fn gradient(painter: &egui::Painter, rect: Rect, tl: Color32, tr: Color32, bl: Color32, br: Color32) {
+pub fn gradient(
+    painter: &egui::Painter,
+    rect: Rect,
+    tl: Color32,
+    tr: Color32,
+    bl: Color32,
+    br: Color32,
+) {
     let n = 12u32;
     let lerp = |a: Color32, b: Color32, t: f32| -> Color32 {
         let l = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
-        Color32::from_rgba_premultiplied(l(a.r(), b.r()), l(a.g(), b.g()), l(a.b(), b.b()), l(a.a(), b.a()))
+        Color32::from_rgba_premultiplied(
+            l(a.r(), b.r()),
+            l(a.g(), b.g()),
+            l(a.b(), b.b()),
+            l(a.a(), b.a()),
+        )
     };
     let mut mesh = egui::Mesh::default();
     for j in 0..=n {
@@ -49,7 +63,10 @@ pub fn gradient(painter: &egui::Painter, rect: Rect, tl: Color32, tr: Color32, b
         let right = lerp(tr, br, v);
         for i in 0..=n {
             let u = i as f32 / n as f32;
-            let pos = Pos2::new(rect.left() + rect.width() * u, rect.top() + rect.height() * v);
+            let pos = Pos2::new(
+                rect.left() + rect.width() * u,
+                rect.top() + rect.height() * v,
+            );
             mesh.colored_vertex(pos, lerp(left, right, u));
         }
     }
@@ -111,7 +128,13 @@ pub fn big_button(ui: &mut Ui, label: &str, accent: Color32, size: f32) -> Respo
         p.circle_filled(c + Vec2::new(0.0, k * 2.0), inner * (1.0 - k * 0.04), col);
     }
     p.circle_stroke(c, inner, Stroke::new(1.5, alpha(Color32::WHITE, 120)));
-    p.text(c, Align2::CENTER_CENTER, label, FontId::proportional(size * 0.15), Color32::WHITE);
+    p.text(
+        c,
+        Align2::CENTER_CENTER,
+        label,
+        FontId::proportional(size * 0.15),
+        Color32::WHITE,
+    );
     if hover {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
@@ -172,8 +195,20 @@ pub fn ring(ui: &mut Ui, frac: f32, label: &str, value: &str, color: Color32) {
     if pts.len() > 1 {
         p.add(egui::Shape::line(pts, Stroke::new(10.0, color)));
     }
-    p.text(c, Align2::CENTER_CENTER, value, FontId::proportional(20.0), TEXT);
-    p.text(Pos2::new(c.x, rect.bottom() - 10.0), Align2::CENTER_CENTER, label, FontId::proportional(13.0), MUTED);
+    p.text(
+        c,
+        Align2::CENTER_CENTER,
+        value,
+        FontId::proportional(20.0),
+        TEXT,
+    );
+    p.text(
+        Pos2::new(c.x, rect.bottom() - 10.0),
+        Align2::CENTER_CENTER,
+        label,
+        FontId::proportional(13.0),
+        MUTED,
+    );
 }
 
 /// Bar showing how full something is.
@@ -194,8 +229,23 @@ pub fn icon_badge(ui: &mut Ui, icon: &str, color: Color32, size: f32) {
     p.rect_filled(rect, r, mix(color, Color32::BLACK, 0.15));
     let mut top = rect.shrink(1.0);
     top.set_height(rect.height() * 0.62);
-    p.rect_filled(top, egui::CornerRadius { nw: r, ne: r, sw: r / 2, se: r / 2 }, mix(color, Color32::WHITE, 0.18));
-    p.text(rect.center(), Align2::CENTER_CENTER, icon, FontId::proportional(size * 0.55), Color32::WHITE);
+    p.rect_filled(
+        top,
+        egui::CornerRadius {
+            nw: r,
+            ne: r,
+            sw: r / 2,
+            se: r / 2,
+        },
+        mix(color, Color32::WHITE, 0.18),
+    );
+    p.text(
+        rect.center(),
+        Align2::CENTER_CENTER,
+        icon,
+        FontId::proportional(size * 0.55),
+        Color32::WHITE,
+    );
 }
 
 #[allow(dead_code)]
@@ -231,9 +281,23 @@ pub fn primary_at(ui: &mut Ui, rect: Rect, label: &str) -> bool {
     let resp = ui.interact(rect, ui.scope_id().with(("primary", label)), Sense::click());
     let p = ui.painter().with_clip_rect(Rect::EVERYTHING);
     let t = ui.ctx().animate_bool(resp.id, resp.hovered());
-    p.add(egui::epaint::Shadow { offset: [0, 5], blur: 14, spread: 0, color: alpha(ACCENT, 70) }.as_shape(rect, 12.0));
+    p.add(
+        egui::epaint::Shadow {
+            offset: [0, 5],
+            blur: 14,
+            spread: 0,
+            color: alpha(ACCENT, 70),
+        }
+        .as_shape(rect, 12.0),
+    );
     p.rect_filled(rect, 12.0, mix(ACCENT, ACCENT_DARK, 0.4 * t));
-    p.text(rect.center(), Align2::CENTER_CENTER, label, FontId::proportional(16.0), Color32::WHITE);
+    p.text(
+        rect.center(),
+        Align2::CENTER_CENTER,
+        label,
+        FontId::proportional(16.0),
+        Color32::WHITE,
+    );
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
@@ -248,7 +312,10 @@ pub fn primary_width(label: &str) -> f32 {
 /// A screen's main action, centred at the bottom of the screen.
 pub fn round_button(ui: &mut Ui, label: &str, _accent: Color32) -> bool {
     let r = ui.max_rect();
-    let rect = Rect::from_center_size(Pos2::new(r.center().x, r.bottom() - 16.0), Vec2::new(primary_width(label), 44.0));
+    let rect = Rect::from_center_size(
+        Pos2::new(r.center().x, r.bottom() - 16.0),
+        Vec2::new(primary_width(label), 44.0),
+    );
     primary_at(ui, rect, label)
 }
 
@@ -258,11 +325,15 @@ pub fn tabs(ui: &mut Ui, labels: &[String], sel: &mut usize) -> bool {
     ui.horizontal(|ui| {
         for (i, l) in labels.iter().enumerate() {
             let on = *sel == i;
-            let b = egui::Button::new(RichText::new(l).size(14.0).color(if on { Color32::WHITE } else { TEXT }))
-                .fill(if on { TEXT } else { Color32::WHITE })
-                .stroke(Stroke::new(1.0, if on { TEXT } else { EDGE }))
-                .corner_radius(15.0)
-                .min_size(Vec2::new(0.0, 30.0));
+            let b = egui::Button::new(RichText::new(l).size(14.0).color(if on {
+                Color32::WHITE
+            } else {
+                TEXT
+            }))
+            .fill(if on { TEXT } else { Color32::WHITE })
+            .stroke(Stroke::new(1.0, if on { TEXT } else { EDGE }))
+            .corner_radius(15.0)
+            .min_size(Vec2::new(0.0, 30.0));
             if ui.add(b).clicked() && !on {
                 *sel = i;
                 changed = true;

@@ -70,15 +70,46 @@ pub fn glyph(painter: &Painter, g: Glyph, rect: Rect, color: Color32) {
             painter.circle_filled(at(17.0, 6.5), 1.6 * u, color);
         }
         Glyph::Shield => {
-            let pts = vec![at(12.0, 2.5), at(20.0, 5.5), at(19.0, 14.0), at(12.0, 21.5), at(5.0, 14.0), at(4.0, 5.5)];
+            let pts = vec![
+                at(12.0, 2.5),
+                at(20.0, 5.5),
+                at(19.0, 14.0),
+                at(12.0, 21.5),
+                at(5.0, 14.0),
+                at(4.0, 5.5),
+            ];
             painter.add(Shape::closed_line(pts, stroke));
-            painter.add(Shape::line(vec![at(8.5, 12.0), at(11.0, 14.5), at(15.5, 9.0)], stroke));
+            painter.add(Shape::line(
+                vec![at(8.5, 12.0), at(11.0, 14.5), at(15.5, 9.0)],
+                stroke,
+            ));
         }
         Glyph::Bolt => {
-            poly(painter, vec![at(14.0, 1.5), at(5.0, 13.5), at(11.0, 13.5)], color);
-            poly(painter, vec![at(11.0, 13.5), at(13.0, 10.5), at(19.0, 10.5), at(10.0, 22.5)], color);
-            poly(painter, vec![at(14.0, 1.5), at(11.0, 13.5), at(13.0, 10.5)], color);
-            poly(painter, vec![at(5.0, 13.5), at(13.0, 10.5), at(11.0, 13.5)], color);
+            poly(
+                painter,
+                vec![at(14.0, 1.5), at(5.0, 13.5), at(11.0, 13.5)],
+                color,
+            );
+            poly(
+                painter,
+                vec![
+                    at(11.0, 13.5),
+                    at(13.0, 10.5),
+                    at(19.0, 10.5),
+                    at(10.0, 22.5),
+                ],
+                color,
+            );
+            poly(
+                painter,
+                vec![at(14.0, 1.5), at(11.0, 13.5), at(13.0, 10.5)],
+                color,
+            );
+            poly(
+                painter,
+                vec![at(5.0, 13.5), at(13.0, 10.5), at(11.0, 13.5)],
+                color,
+            );
         }
         Glyph::Grid => {
             for (x, y) in [(4.0, 4.0), (13.0, 4.0), (4.0, 13.0), (13.0, 13.0)] {
@@ -89,39 +120,72 @@ pub fn glyph(painter: &Painter, g: Glyph, rect: Rect, color: Color32) {
         Glyph::Folder => {
             let back = Rect::from_min_max(at(3.0, 5.0), at(21.0, 19.5));
             painter.rect_filled(back, 2.0 * u, alpha(color, 150));
-            painter.rect_filled(Rect::from_min_max(at(3.0, 4.0), at(10.0, 8.0)), 1.5 * u, alpha(color, 150));
-            painter.rect_filled(Rect::from_min_max(at(3.0, 8.0), at(21.0, 19.5)), 2.0 * u, color);
+            painter.rect_filled(
+                Rect::from_min_max(at(3.0, 4.0), at(10.0, 8.0)),
+                1.5 * u,
+                alpha(color, 150),
+            );
+            painter.rect_filled(
+                Rect::from_min_max(at(3.0, 8.0), at(21.0, 19.5)),
+                2.0 * u,
+                color,
+            );
         }
         Glyph::Lens => {
             painter.circle_stroke(at(10.5, 10.5), 6.5 * u, Stroke::new(2.4 * u, color));
-            painter.line_segment([at(15.5, 15.5), at(20.5, 20.5)], Stroke::new(3.0 * u, color));
+            painter.line_segment(
+                [at(15.5, 15.5), at(20.5, 20.5)],
+                Stroke::new(3.0 * u, color),
+            );
         }
         Glyph::Cloud => {
             painter.circle_filled(at(9.0, 13.0), 5.0 * u, color);
             painter.circle_filled(at(14.5, 10.5), 6.0 * u, color);
             painter.circle_filled(at(18.5, 14.5), 3.8 * u, color);
-            painter.rect_filled(Rect::from_min_max(at(5.0, 13.0), at(19.0, 18.3)), 2.5 * u, color);
+            painter.rect_filled(
+                Rect::from_min_max(at(5.0, 13.0), at(19.0, 18.3)),
+                2.5 * u,
+                color,
+            );
         }
         Glyph::Sliders => {
             for (i, k) in [(0, 8.0), (1, 15.0), (2, 11.0)] {
                 let y = 6.0 + i as f32 * 6.0;
-                painter.line_segment([at(4.0, y), at(20.0, y)], Stroke::new(1.8 * u, alpha(color, 170)));
+                painter.line_segment(
+                    [at(4.0, y), at(20.0, y)],
+                    Stroke::new(1.8 * u, alpha(color, 170)),
+                );
                 painter.circle_filled(at(k, y), 2.6 * u, color);
             }
         }
         Glyph::Chart => {
-            painter.rect_stroke(Rect::from_min_max(at(3.0, 3.0), at(21.0, 21.0)), 4.0 * u, stroke, egui::StrokeKind::Middle);
-            painter.add(Shape::line(vec![at(6.5, 16.0), at(10.0, 11.5), at(13.0, 14.0), at(17.5, 7.5)], stroke));
+            painter.rect_stroke(
+                Rect::from_min_max(at(3.0, 3.0), at(21.0, 21.0)),
+                4.0 * u,
+                stroke,
+                egui::StrokeKind::Middle,
+            );
+            painter.add(Shape::line(
+                vec![at(6.5, 16.0), at(10.0, 11.5), at(13.0, 14.0), at(17.5, 7.5)],
+                stroke,
+            ));
         }
         Glyph::Trash => {
             painter.rect_filled(Rect::from_min_max(at(5.0, 5.5), at(19.0, 7.5)), u, color);
             painter.rect_filled(Rect::from_min_max(at(10.0, 3.0), at(14.0, 5.5)), u, color);
-            poly(painter, vec![at(6.5, 8.5), at(17.5, 8.5), at(16.5, 21.0), at(7.5, 21.0)], color);
+            poly(
+                painter,
+                vec![at(6.5, 8.5), at(17.5, 8.5), at(16.5, 21.0), at(7.5, 21.0)],
+                color,
+            );
         }
         Glyph::Mail => {
             let r = Rect::from_min_max(at(3.0, 6.0), at(21.0, 18.0));
             painter.rect_filled(r, 2.0 * u, color);
-            painter.add(Shape::line(vec![at(4.0, 7.0), at(12.0, 13.0), at(20.0, 7.0)], Stroke::new(1.6 * u, Color32::WHITE)));
+            painter.add(Shape::line(
+                vec![at(4.0, 7.0), at(12.0, 13.0), at(20.0, 7.0)],
+                Stroke::new(1.6 * u, Color32::WHITE),
+            ));
         }
         Glyph::Wrench => {
             painter.line_segment([at(6.0, 18.0), at(14.0, 10.0)], Stroke::new(3.2 * u, color));
@@ -138,41 +202,97 @@ pub fn glyph(painter: &Painter, g: Glyph, rect: Rect, color: Color32) {
             painter.line_segment([at(12.0, 3.0), at(12.0, 12.0)], stroke);
         }
         Glyph::Rocket => {
-            poly(painter, vec![at(12.0, 2.0), at(16.0, 8.0), at(16.0, 16.0), at(8.0, 16.0), at(8.0, 8.0)], color);
-            poly(painter, vec![at(8.0, 12.0), at(4.5, 18.0), at(8.0, 16.0)], color);
-            poly(painter, vec![at(16.0, 12.0), at(16.0, 16.0), at(19.5, 18.0)], color);
+            poly(
+                painter,
+                vec![
+                    at(12.0, 2.0),
+                    at(16.0, 8.0),
+                    at(16.0, 16.0),
+                    at(8.0, 16.0),
+                    at(8.0, 8.0),
+                ],
+                color,
+            );
+            poly(
+                painter,
+                vec![at(8.0, 12.0), at(4.5, 18.0), at(8.0, 16.0)],
+                color,
+            );
+            poly(
+                painter,
+                vec![at(16.0, 12.0), at(16.0, 16.0), at(19.5, 18.0)],
+                color,
+            );
             painter.circle_filled(at(12.0, 19.5), 2.0 * u, alpha(color, 170));
         }
         Glyph::Copy => {
-            painter.rect_stroke(Rect::from_min_max(at(4.0, 4.0), at(15.0, 15.0)), 2.0 * u, stroke, egui::StrokeKind::Middle);
-            painter.rect_filled(Rect::from_min_max(at(9.0, 9.0), at(20.0, 20.0)), 2.0 * u, color);
+            painter.rect_stroke(
+                Rect::from_min_max(at(4.0, 4.0), at(15.0, 15.0)),
+                2.0 * u,
+                stroke,
+                egui::StrokeKind::Middle,
+            );
+            painter.rect_filled(
+                Rect::from_min_max(at(9.0, 9.0), at(20.0, 20.0)),
+                2.0 * u,
+                color,
+            );
         }
         Glyph::Download => {
             painter.line_segment([at(12.0, 3.0), at(12.0, 15.0)], Stroke::new(2.6 * u, color));
-            painter.add(Shape::line(vec![at(7.0, 10.5), at(12.0, 15.5), at(17.0, 10.5)], Stroke::new(2.6 * u, color)));
+            painter.add(Shape::line(
+                vec![at(7.0, 10.5), at(12.0, 15.5), at(17.0, 10.5)],
+                Stroke::new(2.6 * u, color),
+            ));
             painter.line_segment([at(4.0, 20.0), at(20.0, 20.0)], Stroke::new(2.6 * u, color));
         }
         Glyph::Bug => {
             painter.circle_filled(at(12.0, 13.5), 6.0 * u, color);
             painter.circle_filled(at(12.0, 6.5), 3.0 * u, color);
-            for (a, b) in [((6.0, 11.0), (3.0, 9.0)), ((18.0, 11.0), (21.0, 9.0)), ((6.0, 16.0), (3.0, 18.0)), ((18.0, 16.0), (21.0, 18.0))] {
+            for (a, b) in [
+                ((6.0, 11.0), (3.0, 9.0)),
+                ((18.0, 11.0), (21.0, 9.0)),
+                ((6.0, 16.0), (3.0, 18.0)),
+                ((18.0, 16.0), (21.0, 18.0)),
+            ] {
                 painter.line_segment([at(a.0, a.1), at(b.0, b.1)], stroke);
             }
         }
         Glyph::Disk => {
-            painter.rect_filled(Rect::from_min_max(at(3.0, 6.0), at(21.0, 18.0)), 3.0 * u, color);
+            painter.rect_filled(
+                Rect::from_min_max(at(3.0, 6.0), at(21.0, 18.0)),
+                3.0 * u,
+                color,
+            );
             painter.circle_filled(at(17.0, 14.5), 1.3 * u, alpha(Color32::BLACK, 110));
-            painter.line_segment([at(6.0, 14.5), at(12.0, 14.5)], Stroke::new(1.4 * u, alpha(Color32::BLACK, 110)));
+            painter.line_segment(
+                [at(6.0, 14.5), at(12.0, 14.5)],
+                Stroke::new(1.4 * u, alpha(Color32::BLACK, 110)),
+            );
         }
         Glyph::Leftovers => {
-            painter.rect_filled(Rect::from_min_max(at(4.0, 4.0), at(14.0, 14.0)), 2.0 * u, alpha(color, 160));
+            painter.rect_filled(
+                Rect::from_min_max(at(4.0, 4.0), at(14.0, 14.0)),
+                2.0 * u,
+                alpha(color, 160),
+            );
             painter.circle_filled(at(17.0, 17.0), 4.0 * u, color);
             painter.circle_filled(at(8.0, 19.0), 2.0 * u, color);
             painter.circle_filled(at(19.0, 7.0), 1.6 * u, color);
         }
         Glyph::Hammer => {
             painter.line_segment([at(13.0, 9.0), at(5.0, 20.0)], Stroke::new(2.6 * u, color));
-            poly(painter, vec![at(9.0, 4.0), at(17.0, 4.0), at(20.0, 8.0), at(20.0, 11.0), at(9.0, 8.0)], color);
+            poly(
+                painter,
+                vec![
+                    at(9.0, 4.0),
+                    at(17.0, 4.0),
+                    at(20.0, 8.0),
+                    at(20.0, 11.0),
+                    at(9.0, 8.0),
+                ],
+                color,
+            );
         }
     }
 }
@@ -272,7 +392,12 @@ fn fill_gradient(painter: &Painter, pts: &[Pos2], top: Color32, bottom: Color32)
     }
     let lerp = |t: f32| -> Color32 {
         let l = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
-        Color32::from_rgba_premultiplied(l(top.r(), bottom.r()), l(top.g(), bottom.g()), l(top.b(), bottom.b()), l(top.a(), bottom.a()))
+        Color32::from_rgba_premultiplied(
+            l(top.r(), bottom.r()),
+            l(top.g(), bottom.g()),
+            l(top.b(), bottom.b()),
+            l(top.a(), bottom.a()),
+        )
     };
     let col = |y: f32| lerp(((y - y0) / (y1 - y0).max(1.0)).clamp(0.0, 1.0));
     let cx = pts.iter().map(|p| p.x).sum::<f32>() / pts.len() as f32;
@@ -293,24 +418,60 @@ fn fill_gradient(painter: &Painter, pts: &[Pos2], top: Color32, bottom: Color32)
 pub fn hero(painter: &Painter, outline: Outline, g: Glyph, c: Pos2, r: f32, base: Color32) {
     // ground shadow and thickness
     let shadow = outline_points(outline, c + Vec2::new(0.0, r * 0.22), r * 0.96);
-    fill_gradient(painter, &shadow, alpha(Color32::from_rgb(40, 30, 90), 26), alpha(Color32::from_rgb(40, 30, 90), 46));
+    fill_gradient(
+        painter,
+        &shadow,
+        alpha(Color32::from_rgb(40, 30, 90), 26),
+        alpha(Color32::from_rgb(40, 30, 90), 46),
+    );
     let side = outline_points(outline, c + Vec2::new(0.0, r * 0.10), r);
-    fill_gradient(painter, &side, mix(base, Color32::BLACK, 0.30), mix(base, Color32::BLACK, 0.45));
+    fill_gradient(
+        painter,
+        &side,
+        mix(base, Color32::BLACK, 0.30),
+        mix(base, Color32::BLACK, 0.45),
+    );
     // top face
     let face = outline_points(outline, c, r);
-    fill_gradient(painter, &face, mix(base, Color32::WHITE, 0.45), mix(base, Color32::BLACK, 0.25));
-    painter.add(Shape::closed_line(face.clone(), Stroke::new(2.0, alpha(Color32::WHITE, 110))));
+    fill_gradient(
+        painter,
+        &face,
+        mix(base, Color32::WHITE, 0.45),
+        mix(base, Color32::BLACK, 0.25),
+    );
+    painter.add(Shape::closed_line(
+        face.clone(),
+        Stroke::new(2.0, alpha(Color32::WHITE, 110)),
+    ));
     // inner well
     let inner = outline_points(outline, c + Vec2::new(0.0, r * 0.03), r * 0.82);
-    fill_gradient(painter, &inner, mix(base, Color32::BLACK, 0.15), mix(base, Color32::WHITE, 0.2));
-    painter.add(Shape::closed_line(inner, Stroke::new(1.0, alpha(Color32::WHITE, 50))));
+    fill_gradient(
+        painter,
+        &inner,
+        mix(base, Color32::BLACK, 0.15),
+        mix(base, Color32::WHITE, 0.2),
+    );
+    painter.add(Shape::closed_line(
+        inner,
+        Stroke::new(1.0, alpha(Color32::WHITE, 50)),
+    ));
     // glossy highlight
     let hl: Vec<Pos2> = outline_points(outline, c + Vec2::new(-r * 0.12, -r * 0.30), r * 0.48);
-    fill_gradient(painter, &hl, alpha(Color32::WHITE, 60), alpha(Color32::WHITE, 0));
+    fill_gradient(
+        painter,
+        &hl,
+        alpha(Color32::WHITE, 60),
+        alpha(Color32::WHITE, 0),
+    );
     // the symbol, with a soft drop shadow
     let gs = r * 0.95;
     let gr = Rect::from_center_size(c + Vec2::new(0.0, r * 0.02), Vec2::splat(gs));
-    glyph(painter, g, gr.translate(Vec2::new(0.0, r * 0.06)), alpha(mix(base, Color32::BLACK, 0.5), 120));
+    glyph(
+        painter,
+        g,
+        gr.translate(Vec2::new(0.0, r * 0.06)),
+        alpha(mix(base, Color32::BLACK, 0.5), 120),
+    );
     glyph(painter, g, gr, Color32::from_rgb(245, 240, 255));
 }
 
@@ -334,11 +495,23 @@ pub fn rounded_points(rect: Rect, radius: f32) -> Vec<Pos2> {
 }
 
 /// A rounded glassy panel with a top-to-bottom gradient; colours may be see-through.
-pub fn panel(painter: &Painter, rect: Rect, radius: f32, top: Color32, bottom: Color32, stroke: Stroke) {
+pub fn panel(
+    painter: &Painter,
+    rect: Rect,
+    radius: f32,
+    top: Color32,
+    bottom: Color32,
+    stroke: Stroke,
+) {
     let pts = rounded_points(rect, radius);
     let lerp = |t: f32| -> Color32 {
         let l = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
-        Color32::from_rgba_premultiplied(l(top.r(), bottom.r()), l(top.g(), bottom.g()), l(top.b(), bottom.b()), l(top.a(), bottom.a()))
+        Color32::from_rgba_premultiplied(
+            l(top.r(), bottom.r()),
+            l(top.g(), bottom.g()),
+            l(top.b(), bottom.b()),
+            l(top.a(), bottom.a()),
+        )
     };
     let col = |y: f32| lerp(((y - rect.top()) / rect.height().max(1.0)).clamp(0.0, 1.0));
     let mut mesh = egui::Mesh::default();
@@ -358,11 +531,24 @@ pub fn panel(painter: &Painter, rect: Rect, radius: f32, top: Color32, bottom: C
 /// The app's mark: a ring with a gap and the piece that was cleared away, on a raised tile.
 pub fn brand_mark(painter: &Painter, rect: Rect) {
     let rad = rect.height() * 0.28;
-    painter.rect_filled(rect.translate(Vec2::new(0.0, rect.height() * 0.09)), rad, Color32::from_rgb(61, 34, 166));
+    painter.rect_filled(
+        rect.translate(Vec2::new(0.0, rect.height() * 0.09)),
+        rad,
+        Color32::from_rgb(61, 34, 166),
+    );
     painter.rect_filled(rect, rad, Color32::from_rgb(91, 56, 214));
     let c = rect.center();
     let r = rect.width() * 0.25;
-    let pts: Vec<Pos2> = (0..=48).map(|i| c + Vec2::angled((-5.0 + 280.0 * i as f32 / 48.0).to_radians()) * r).collect();
-    painter.add(Shape::line(pts, Stroke::new(rect.width() * 0.11, Color32::WHITE)));
-    painter.circle_filled(c + Vec2::angled((-45.0f32).to_radians()) * r, rect.width() * 0.06, Color32::from_rgb(111, 242, 196));
+    let pts: Vec<Pos2> = (0..=48)
+        .map(|i| c + Vec2::angled((-5.0 + 280.0 * i as f32 / 48.0).to_radians()) * r)
+        .collect();
+    painter.add(Shape::line(
+        pts,
+        Stroke::new(rect.width() * 0.11, Color32::WHITE),
+    ));
+    painter.circle_filled(
+        c + Vec2::angled((-45.0f32).to_radians()) * r,
+        rect.width() * 0.06,
+        Color32::from_rgb(111, 242, 196),
+    );
 }

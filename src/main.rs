@@ -7,7 +7,9 @@ mod extra;
 mod linux;
 mod pages;
 mod pages2;
+mod pages3;
 mod scan;
+mod settings;
 mod threats;
 mod ui_kit;
 mod windows;
@@ -26,10 +28,13 @@ fn main() -> eframe::Result {
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Cleanerio")
         .with_inner_size([1240.0, 780.0])
-            .with_app_id("cleanerio")
+        .with_app_id("cleanerio")
         .with_min_inner_size([920.0, 620.0])
         // the app's own icon in the Dock and the app switcher
-        .with_icon(eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon-256.png")).expect("app icon"))
+        .with_icon(
+            eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon-256.png"))
+                .expect("app icon"),
+        )
         .with_fullsize_content_view(true)
         .with_title_shown(false)
         .with_titlebar_shown(false);

@@ -5,7 +5,7 @@
 //! A built-in database ships with the app; a newer one can be loaded from a file and is kept in
 //! ~/Library/Application Support/Cleanerio/threats.json.
 
-use crate::scan::{children, file_name, home, short, AgentItem, Progress, Verdict};
+use crate::scan::{AgentItem, Progress, Verdict, children, file_name, home, short};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -34,7 +34,11 @@ pub struct Database {
 
 impl Database {
     pub fn signatures(&self) -> usize {
-        self.families.iter().map(|f| f.words.len() + f.paths.len()).sum::<usize>() + self.sha256.len()
+        self.families
+            .iter()
+            .map(|f| f.words.len() + f.paths.len())
+            .sum::<usize>()
+            + self.sha256.len()
     }
     fn family(&self, name: &str) -> Option<&Family> {
         self.families.iter().find(|f| f.name == name)
@@ -43,7 +47,11 @@ impl Database {
     fn match_words(&self, text: &str) -> Option<(&Family, String)> {
         let t = text.to_lowercase();
         for f in &self.families {
-            if let Some(w) = f.words.iter().find(|w| !w.is_empty() && t.contains(&w.to_lowercase())) {
+            if let Some(w) = f
+                .words
+                .iter()
+                .find(|w| !w.is_empty() && t.contains(&w.to_lowercase()))
+            {
                 return Some((f, w.clone()));
             }
         }
@@ -58,7 +66,10 @@ fn user_file() -> PathBuf {
 /// The newest of the built-in database and the saved one.
 pub fn load() -> Database {
     let built: Database = serde_json::from_str(BUILT_IN).expect("built-in threat database");
-    match std::fs::read_to_string(user_file()).ok().and_then(|s| serde_json::from_str::<Database>(&s).ok()) {
+    match std::fs::read_to_string(user_file())
+        .ok()
+        .and_then(|s| serde_json::from_str::<Database>(&s).ok())
+    {
         Some(u) if u.version >= built.version => u,
         _ => built,
     }
@@ -67,7 +78,8 @@ pub fn load() -> Database {
 /// Checks a database file and saves it as the one to use. Returns the loaded database.
 pub fn install(from: &Path) -> Result<Database, String> {
     let text = std::fs::read_to_string(from).map_err(|e| e.to_string())?;
-    let db: Database = serde_json::from_str(&text).map_err(|e| format!("not a threat database ({e})"))?;
+    let db: Database =
+        serde_json::from_str(&text).map_err(|e| format!("not a threat database ({e})"))?;
     if db.families.is_empty() {
         return Err("the file has no threat families".into());
     }
@@ -88,7 +100,10 @@ pub fn pick_file() -> Option<PathBuf> {
         return crate::windows::pick_file();
     }
     let out = std::process::Command::new("osascript")
-        .args(["-e", "POSIX path of (choose file with prompt \"Choose a threat database (.json)\")"])
+        .args([
+            "-e",
+            "POSIX path of (choose file with prompt \"Choose a threat database (.json)\")",
+        ])
         .output()
         .ok()?;
     let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
@@ -122,7 +137,14 @@ fn expand(p: &str) -> PathBuf {
     }
 }
 
-fn hit(path: PathBuf, label: String, program: String, place: &'static str, fam: &Family, why: String) -> AgentItem {
+fn hit(
+    path: PathBuf,
+    label: String,
+    program: String,
+    place: &'static str,
+    fam: &Family,
+    why: String,
+) -> AgentItem {
     AgentItem {
         path,
         label,
@@ -165,15 +187,42 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
         p.set("Checking what starts by itself…");
         for e in crate::windows::startup_entries() {
             if let Some((fam, w)) = db.match_words(&format!("{} {}", e.name, e.program)) {
-                out.push(hit(e.path, e.name, e.program, e.place, fam, format!("matches “{w}”")));
+                out.push(hit(
+                    e.path,
+                    e.name,
+                    e.program,
+                    e.place,
+                    fam,
+                    format!("matches “{w}”"),
+                ));
                 continue;
             }
-            if let Some(fam) = sha256_file(Path::new(&e.program)).and_then(|s| db.sha256.get(&s)).and_then(|n| db.family(n)) {
-                out.push(sure(hit(e.path, e.name, e.program, e.place, fam, "file fingerprint matches".into())));
+            if let Some(fam) = sha256_file(Path::new(&e.program))
+                .and_then(|s| db.sha256.get(&s))
+                .and_then(|n| db.family(n))
+            {
+                out.push(sure(hit(
+                    e.path,
+                    e.name,
+                    e.program,
+                    e.place,
+                    fam,
+                    "file fingerprint matches".into(),
+                )));
                 continue;
             }
             let (verdict, reason) = crate::scan::judge(&e.name, &e.program, &e.name);
-            out.push(AgentItem { path: e.path, label: e.name, program: e.program, place: e.place, verdict, reason, category: String::new(), selected: false, pid: None });
+            out.push(AgentItem {
+                path: e.path,
+                label: e.name,
+                program: e.program,
+                place: e.place,
+                verdict,
+                reason,
+                category: String::new(),
+                selected: false,
+                pid: None,
+            });
         }
     }
     for (dir, place) in places {
@@ -181,23 +230,51 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
             if p.cancelled() {
                 return out;
             }
-            let wanted = if crate::linux::ON { crate::linux::is_startup_file(&f) } else { f.extension().is_some_and(|e| e == "plist") };
+            let wanted = if crate::linux::ON {
+                crate::linux::is_startup_file(&f)
+            } else {
+                f.extension().is_some_and(|e| e == "plist")
+            };
             if !wanted {
                 continue;
             }
             p.set(format!("Checking {}", short(&f)));
-            let (label, program) = if crate::linux::ON { crate::linux::entry_program(&f) } else { crate::scan::plist_program(&f) };
+            let (label, program) = if crate::linux::ON {
+                crate::linux::entry_program(&f)
+            } else {
+                crate::scan::plist_program(&f)
+            };
             let text = format!("{label} {program} {}", file_name(&f));
             if let Some((fam, w)) = db.match_words(&text) {
                 out.push(hit(f, label, program, place, fam, format!("matches “{w}”")));
                 continue;
             }
-            if let Some(fam) = sha256_file(Path::new(&program)).and_then(|s| db.sha256.get(&s)).and_then(|n| db.family(n)) {
-                out.push(sure(hit(f, label, program, place, fam, "file fingerprint matches".into())));
+            if let Some(fam) = sha256_file(Path::new(&program))
+                .and_then(|s| db.sha256.get(&s))
+                .and_then(|n| db.family(n))
+            {
+                out.push(sure(hit(
+                    f,
+                    label,
+                    program,
+                    place,
+                    fam,
+                    "file fingerprint matches".into(),
+                )));
                 continue;
             }
             let (verdict, reason) = crate::scan::judge(&label, &program, &file_name(&f));
-            out.push(AgentItem { path: f, label, program, place, verdict, reason, category: String::new(), selected: false, pid: None });
+            out.push(AgentItem {
+                path: f,
+                label,
+                program,
+                place,
+                verdict,
+                reason,
+                category: String::new(),
+                selected: false,
+                pid: None,
+            });
         }
     }
 
@@ -213,14 +290,39 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
             p.set(format!("Checking {}", file_name(&a)));
             let info = plist::Value::from_file(a.join("Contents/Info.plist")).ok();
             let d = info.as_ref().and_then(|v| v.as_dictionary());
-            let id = d.and_then(|d| d.get("CFBundleIdentifier")).and_then(|v| v.as_string()).unwrap_or("").to_string();
-            let exe = d.and_then(|d| d.get("CFBundleExecutable")).and_then(|v| v.as_string()).unwrap_or("").to_string();
+            let id = d
+                .and_then(|d| d.get("CFBundleIdentifier"))
+                .and_then(|v| v.as_string())
+                .unwrap_or("")
+                .to_string();
+            let exe = d
+                .and_then(|d| d.get("CFBundleExecutable"))
+                .and_then(|v| v.as_string())
+                .unwrap_or("")
+                .to_string();
             let name = file_name(&a);
             if let Some((fam, w)) = db.match_words(&format!("{name} {id}")) {
-                out.push(hit(a, name, id, "Applications", fam, format!("matches “{w}”")));
+                out.push(hit(
+                    a,
+                    name,
+                    id,
+                    "Applications",
+                    fam,
+                    format!("matches “{w}”"),
+                ));
             } else if !db.sha256.is_empty() && !exe.is_empty() {
-                if let Some(fam) = sha256_file(&a.join("Contents/MacOS").join(&exe)).and_then(|s| db.sha256.get(&s)).and_then(|n| db.family(n)) {
-                    out.push(sure(hit(a, name, id, "Applications", fam, "file fingerprint matches".into())));
+                if let Some(fam) = sha256_file(&a.join("Contents/MacOS").join(&exe))
+                    .and_then(|s| db.sha256.get(&s))
+                    .and_then(|n| db.family(n))
+                {
+                    out.push(sure(hit(
+                        a,
+                        name,
+                        id,
+                        "Applications",
+                        fam,
+                        "file fingerprint matches".into(),
+                    )));
                 }
             }
         }
@@ -229,11 +331,27 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
     // 3. browser extensions (Chrome-family browsers keep a manifest per extension)
     p.set("Checking browser extensions…");
     let browsers = if crate::windows::ON {
-        [("Google/Chrome/User Data", "Chrome"), ("Microsoft/Edge/User Data", "Edge"), ("BraveSoftware/Brave-Browser/User Data", "Brave")].to_vec()
+        [
+            ("Google/Chrome/User Data", "Chrome"),
+            ("Microsoft/Edge/User Data", "Edge"),
+            ("BraveSoftware/Brave-Browser/User Data", "Brave"),
+        ]
+        .to_vec()
     } else if crate::linux::ON {
-        [("google-chrome", "Chrome"), ("microsoft-edge", "Edge"), ("BraveSoftware/Brave-Browser", "Brave"), ("chromium", "Chrome")].to_vec()
+        [
+            ("google-chrome", "Chrome"),
+            ("microsoft-edge", "Edge"),
+            ("BraveSoftware/Brave-Browser", "Brave"),
+            ("chromium", "Chrome"),
+        ]
+        .to_vec()
     } else {
-        [("Google/Chrome", "Chrome"), ("Microsoft Edge", "Edge"), ("BraveSoftware/Brave-Browser", "Brave")].to_vec()
+        [
+            ("Google/Chrome", "Chrome"),
+            ("Microsoft Edge", "Edge"),
+            ("BraveSoftware/Brave-Browser", "Brave"),
+        ]
+        .to_vec()
     };
     let support = if crate::windows::ON {
         crate::windows::local()
@@ -247,10 +365,16 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
         for profile in children(&base) {
             for ext in children(&profile.join("Extensions")) {
                 for ver in children(&ext) {
-                    let Ok(m) = std::fs::read_to_string(ver.join("manifest.json")) else { continue };
+                    let Ok(m) = std::fs::read_to_string(ver.join("manifest.json")) else {
+                        continue;
+                    };
                     let name = serde_json::from_str::<serde_json::Value>(&m)
                         .ok()
-                        .and_then(|v| v.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
+                        .and_then(|v| {
+                            v.get("name")
+                                .and_then(|n| n.as_str())
+                                .map(|s| s.to_string())
+                        })
                         .unwrap_or_else(|| file_name(&ext));
                     if let Some((fam, w)) = db.match_words(&format!("{name} {}", file_name(&ext))) {
                         let place: &'static str = match browser {
@@ -258,7 +382,14 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
                             "Edge" => "Edge extension",
                             _ => "Brave extension",
                         };
-                        out.push(hit(ext.clone(), name.clone(), String::new(), place, fam, format!("matches “{w}”")));
+                        out.push(hit(
+                            ext.clone(),
+                            name.clone(),
+                            String::new(),
+                            place,
+                            fam,
+                            format!("matches “{w}”"),
+                        ));
                     }
                 }
             }
@@ -273,7 +404,14 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
         let name = proc_.name().to_string_lossy().to_string();
         let exe = proc_.exe().map(|e| e.to_path_buf()).unwrap_or_default();
         if let Some((fam, w)) = db.match_words(&format!("{name} {}", exe.display())) {
-            let mut item = hit(exe.clone(), name, exe.display().to_string(), "Running now", fam, format!("matches “{w}”"));
+            let mut item = hit(
+                exe.clone(),
+                name,
+                exe.display().to_string(),
+                "Running now",
+                fam,
+                format!("matches “{w}”"),
+            );
             item.pid = Some(pid.as_u32());
             out.push(item);
         }
@@ -285,12 +423,23 @@ pub fn scan(db: &Database, p: &Progress) -> Vec<AgentItem> {
         for loc in &fam.paths {
             let path = expand(loc);
             if std::fs::symlink_metadata(&path).is_ok() && !out.iter().any(|i| i.path == path) {
-                out.push(hit(path.clone(), file_name(&path), String::new(), "Known location", fam, format!("found at {}", short(&path))));
+                out.push(hit(
+                    path.clone(),
+                    file_name(&path),
+                    String::new(),
+                    "Known location",
+                    fam,
+                    format!("found at {}", short(&path)),
+                ));
             }
         }
     }
 
-    out.sort_by(|a, b| a.verdict.cmp(&b.verdict).then(a.label.to_lowercase().cmp(&b.label.to_lowercase())));
+    out.sort_by(|a, b| {
+        a.verdict
+            .cmp(&b.verdict)
+            .then(a.label.to_lowercase().cmp(&b.label.to_lowercase()))
+    });
     out
 }
 
@@ -303,6 +452,7 @@ pub fn load_cached() -> &'static Database {
 impl Database {
     /// (family name, category) and the word that matched.
     pub fn match_words_pub(&self, text: &str) -> Option<((String, String), String)> {
-        self.match_words(text).map(|(f, w)| ((f.name.clone(), f.category.clone()), w))
+        self.match_words(text)
+            .map(|(f, w)| ((f.name.clone(), f.category.clone()), w))
     }
 }

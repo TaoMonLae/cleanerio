@@ -1,11 +1,13 @@
 //! The ten screens. Each section opens on a welcome screen (big picture, title, bullets and a
 //! round button); the button starts its scan, and the results replace the welcome screen.
 
-use crate::app::{elide, reveal, CleanerApp, Page, Pending, SmartResult};
+use crate::app::{CleanerApp, Page, Pending, SmartResult, elide, reveal};
 use crate::art::{self, Glyph};
-use crate::scan::{self, human, short, Job, JunkKind, Verdict};
+use crate::scan::{self, Job, JunkKind, Verdict, human, short};
 use crate::ui_kit::*;
-use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
+use eframe::egui::{
+    self, Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2,
+};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -43,8 +45,6 @@ pub const OLD_FILE_DAYS: u64 = 365;
 pub const OLD_DOWNLOAD_DAYS: u64 = 90;
 /// Apps not opened for this many days count as "unused".
 pub const UNUSED_APP_DAYS: u64 = 180;
-/// The Trash counts as "big" above this (2 GB).
-pub const TRASH_ALERT_BYTES: u64 = 2_000_000_000;
 /// Memory share above which the Memory tile turns amber (estimated; not part of the score).
 pub const MEMORY_HIGH: f32 = 0.85;
 
@@ -59,8 +59,6 @@ pub const PENALTY_UPTIME: i64 = 5;
 pub const PENALTY_CRITICAL_BATTERY: i64 = 80;
 /// Restart is suggested after this long ("It's been over a week now").
 pub const UPTIME_WARN_DAYS: u64 = 7;
-/// A scan counts as "recent" within this many days (our choice).
-pub const RECENT_SCAN_DAYS: u64 = 7;
 
 /// Health level from the score: >89 Excellent, >59 Good, >39 Fair,
 /// >0 Requires Attention, otherwise Critical.
@@ -107,7 +105,12 @@ pub fn start_smart() -> Job<SmartResult> {
             big.extend(scan::scan_big(r, LARGE_FILE_BYTES, p));
         }
         big.sort_by(|a, b| b.size.cmp(&a.size));
-        SmartResult { junk, agents, apps, big }
+        SmartResult {
+            junk,
+            agents,
+            apps,
+            big,
+        }
     })
 }
 
@@ -116,10 +119,15 @@ pub fn glyph_tile(ui: &mut Ui, g: Glyph, color: Color32, size: f32) {
     let (r, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
     let p = ui.painter();
     p.rect_filled(r, (size * 0.28) as u8, mix(Color32::WHITE, color, 0.14));
-    art::glyph(p, g, r.shrink(size * 0.24), mix(color, Color32::BLACK, 0.28));
+    art::glyph(
+        p,
+        g,
+        r.shrink(size * 0.24),
+        mix(color, Color32::BLACK, 0.28),
+    );
 }
 
-fn junk_glyph(k: JunkKind) -> Glyph {
+pub fn junk_glyph(k: JunkKind) -> Glyph {
     match k {
         JunkKind::Caches => Glyph::Disk,
         JunkKind::Logs => Glyph::Chart,
@@ -168,8 +176,12 @@ fn age_text(days: u64) -> String {
     }
 }
 
-fn plural(n: usize, one: &str) -> String {
-    if n == 1 { format!("1 {one}") } else { format!("{n} {one}s") }
+pub fn plural(n: usize, one: &str) -> String {
+    if n == 1 {
+        format!("1 {one}")
+    } else {
+        format!("{n} {one}s")
+    }
 }
 
 fn folder_label(p: &std::path::Path) -> String {
@@ -195,34 +207,79 @@ impl CleanerApp {
         }
         let rect = ui.max_rect();
         let top_p = ui.painter().with_clip_rect(Rect::EVERYTHING);
-        top_p.text(Pos2::new(rect.center().x, rect.top() - 26.0), Align2::CENTER_CENTER, Page::Smart.name(), FontId::proportional(16.0), MUTED);
+        top_p.text(
+            Pos2::new(rect.center().x, rect.top() - 26.0),
+            Align2::CENTER_CENTER,
+            Page::Smart.name(),
+            FontId::proportional(16.0),
+            MUTED,
+        );
 
         let junk_size: u64 = self
             .junk
             .as_ref()
-            .map(|j| j.iter().filter(|g| g.kind != JunkKind::Trash).map(|g| g.selected_size()).sum())
+            .map(|j| {
+                j.iter()
+                    .filter(|g| g.kind != JunkKind::Trash)
+                    .map(|g| g.selected_size())
+                    .sum()
+            })
             .unwrap_or(0);
-        let threats = self.agents.as_ref().map(|a| a.iter().filter(|i| i.verdict == Verdict::Threat).count()).unwrap_or(0);
-        let review = self.agents.as_ref().map(|a| a.iter().filter(|i| i.verdict == Verdict::Review).count()).unwrap_or(0);
+        let threats = self
+            .agents
+            .as_ref()
+            .map(|a| a.iter().filter(|i| i.verdict == Verdict::Threat).count())
+            .unwrap_or(0);
+        let review = self
+            .agents
+            .as_ref()
+            .map(|a| a.iter().filter(|i| i.verdict == Verdict::Review).count())
+            .unwrap_or(0);
         let tasks = self.tasks.iter().filter(|t| t.selected).count();
-        let (apps_total, apps_unused) = self.smart.as_ref().map(|s| (s.total, s.unused.len())).unwrap_or((0, 0));
-        let big_size: u64 = self.big.as_ref().map(|b| b.iter().map(|f| f.size).sum()).unwrap_or(0);
+        let (apps_total, apps_unused) = self
+            .smart
+            .as_ref()
+            .map(|s| (s.total, s.unused.len()))
+            .unwrap_or((0, 0));
+        let big_size: u64 = self
+            .big
+            .as_ref()
+            .map(|b| b.iter().map(|f| f.size).sum())
+            .unwrap_or(0);
         let big_n = self.big.as_ref().map(|b| b.len()).unwrap_or(0);
 
         // card layout: three across the top, two across the bottom
         let gap = 18.0;
-        let area = Rect::from_min_max(Pos2::new(rect.left(), rect.top() + 6.0), Pos2::new(rect.right(), rect.bottom() - 70.0));
+        let area = Rect::from_min_max(
+            Pos2::new(rect.left(), rect.top() + 6.0),
+            Pos2::new(rect.right(), rect.bottom() - 70.0),
+        );
         let top_h = area.height() * 0.64;
         let w = area.width() - 2.0 * gap;
         let x0 = area.left();
-        let x1 = x0 + w * 0.2 + gap;
-        let x2 = x1 + w * 0.56 + gap;
-        let r_clean = Rect::from_min_max(Pos2::new(x0, area.top()), Pos2::new(x1 - gap, area.top() + top_h));
-        let r_mid = Rect::from_min_max(Pos2::new(x1, area.top()), Pos2::new(x2 - gap, area.top() + top_h));
-        let r_perf = Rect::from_min_max(Pos2::new(x2, area.top()), Pos2::new(area.right(), area.top() + top_h));
+        let x1 = x0 + w * 0.27 + gap;
+        let x2 = x1 + w * 0.46 + gap;
+        let r_clean = Rect::from_min_max(
+            Pos2::new(x0, area.top()),
+            Pos2::new(x1 - gap, area.top() + top_h),
+        );
+        let r_mid = Rect::from_min_max(
+            Pos2::new(x1, area.top()),
+            Pos2::new(x2 - gap, area.top() + top_h),
+        );
+        let r_perf = Rect::from_min_max(
+            Pos2::new(x2, area.top()),
+            Pos2::new(area.right(), area.top() + top_h),
+        );
         let half = (area.width() - gap) / 2.0;
-        let r_apps = Rect::from_min_max(Pos2::new(area.left(), area.top() + top_h + gap), Pos2::new(area.left() + half, area.bottom()));
-        let r_clut = Rect::from_min_max(Pos2::new(area.left() + half + gap, area.top() + top_h + gap), Pos2::new(area.right(), area.bottom()));
+        let r_apps = Rect::from_min_max(
+            Pos2::new(area.left(), area.top() + top_h + gap),
+            Pos2::new(area.left() + half, area.bottom()),
+        );
+        let r_clut = Rect::from_min_max(
+            Pos2::new(area.left() + half + gap, area.top() + top_h + gap),
+            Pos2::new(area.right(), area.bottom()),
+        );
 
         let stage = running.as_ref().map(|r| r.0);
         let done = |i: usize| match stage {
@@ -233,33 +290,77 @@ impl CleanerApp {
         let mut go = None;
 
         let (big, small) = if finished {
-            (format!("{} of junk", human(junk_size)), "to clean".to_string())
+            (human(junk_size), "of junk to clean".to_string())
         } else if done(0) {
             (String::new(), "Checked".into())
         } else {
             (String::new(), "Searching…".into())
         };
-        if self.smart_card(ui, r_clean, Page::Cleanup, (0.5, 0.40, 0.30), &big, &small) && finished {
+        let mut flip = (false, false);
+        let c = self.smart_card(
+            ui,
+            r_clean,
+            Page::Cleanup,
+            (0.5, 0.40, 0.26),
+            &big,
+            &small,
+            finished.then_some(self.settings.smart_cleanup),
+            finished,
+        );
+        flip.0 = c.1;
+        if c.0 && finished {
             go = Some(Page::Cleanup);
         }
         let (big, small) = if finished {
-            (plural(tasks, "task"), format!("recommended · memory {:.0}% used", self.mem_used as f32 / self.mem_total as f32 * 100.0))
+            (plural(tasks, "task"), "to run".to_string())
         } else if done(2) {
             (String::new(), "Checked".into())
         } else {
             (String::new(), "Waiting…".into())
         };
-        if self.smart_card(ui, r_perf, Page::Performance, (0.5, 0.40, 0.30), &big, &small) && finished {
+        let c = self.smart_card(
+            ui,
+            r_perf,
+            Page::Performance,
+            (0.5, 0.40, 0.26),
+            &big,
+            &small,
+            finished.then_some(self.settings.smart_performance),
+            finished,
+        );
+        flip.1 = c.1;
+        if c.0 && finished {
             go = Some(Page::Performance);
         }
+        if flip.0 || flip.1 {
+            self.settings.smart_cleanup ^= flip.0;
+            self.settings.smart_performance ^= flip.1;
+            self.settings.save();
+        }
         let (big, small) = if finished {
-            (plural(apps_total, "app"), format!("{} not opened for six months", apps_unused))
+            (
+                plural(apps_total, "app"),
+                format!("{} not opened for six months", apps_unused),
+            )
         } else if done(3) {
             (String::new(), "Checked".into())
         } else {
             (String::new(), String::new())
         };
-        if self.smart_card(ui, r_apps, Page::Apps, (0.80, 0.52, 0.20), &big, &small) && finished {
+        if self
+            .smart_card(
+                ui,
+                r_apps,
+                Page::Apps,
+                (0.74, 0.42, 0.20),
+                &big,
+                &small,
+                None,
+                finished,
+            )
+            .0
+            && finished
+        {
             go = Some(Page::Apps);
         }
         let (big, small) = if finished {
@@ -269,7 +370,20 @@ impl CleanerApp {
         } else {
             (String::new(), String::new())
         };
-        if self.smart_card(ui, r_clut, Page::Clutter, (0.80, 0.52, 0.20), &big, &small) && finished {
+        if self
+            .smart_card(
+                ui,
+                r_clut,
+                Page::Clutter,
+                (0.74, 0.42, 0.20),
+                &big,
+                &small,
+                None,
+                finished,
+            )
+            .0
+            && finished
+        {
             go = Some(Page::Clutter);
         }
 
@@ -278,23 +392,90 @@ impl CleanerApp {
         if let Some((s, status)) = &running {
             let (page, title) = SMART_STEPS[(*s).min(4)];
             let acc = page.accent();
-            art::panel(&p, r_mid, 20.0, mix(Color32::WHITE, acc, 0.16), mix(Color32::WHITE, acc, 0.12), Stroke::NONE);
+            art::panel(
+                &p,
+                r_mid,
+                20.0,
+                mix(Color32::WHITE, acc, 0.16),
+                mix(Color32::WHITE, acc, 0.12),
+                Stroke::NONE,
+            );
             let t = ui.input(|i| i.time) as f32;
-            let c = Pos2::new(r_mid.center().x, r_mid.center().y + 10.0 + (t * 2.0).sin() * 5.0);
-            art::hero(&p, page.outline(), page.glyph(), c, r_mid.height() * 0.24, acc);
-            p.text(Pos2::new(r_mid.center().x, r_mid.top() + 64.0), Align2::CENTER_CENTER, title, FontId::proportional(34.0), TEXT);
-            p.text(Pos2::new(r_mid.center().x, r_mid.bottom() - 40.0), Align2::CENTER_CENTER, elide(status, 70), FontId::proportional(15.0), BODY);
+            let c = Pos2::new(
+                r_mid.center().x,
+                r_mid.center().y + 10.0 + (t * 2.0).sin() * 5.0,
+            );
+            art::hero(
+                &p,
+                page.outline(),
+                page.glyph(),
+                c,
+                r_mid.height() * 0.24,
+                acc,
+            );
+            p.text(
+                Pos2::new(r_mid.center().x, r_mid.top() + 64.0),
+                Align2::CENTER_CENTER,
+                title,
+                FontId::proportional(34.0),
+                TEXT,
+            );
+            p.text(
+                Pos2::new(r_mid.center().x, r_mid.bottom() - 40.0),
+                Align2::CENTER_CENTER,
+                elide(status, 70),
+                FontId::proportional(15.0),
+                BODY,
+            );
             ui.ctx().request_repaint();
         } else {
             let page = Page::Protection;
             let resp = ui.interact(r_mid, ui.scope_id().with("mid"), Sense::click());
             let acc = page.accent();
-            art::panel(&p, r_mid, 20.0, mix(Color32::WHITE, acc, if resp.hovered() { 0.20 } else { 0.14 }), mix(Color32::WHITE, acc, 0.12), Stroke::NONE);
-            art::hero(&p, page.outline(), page.glyph(), Pos2::new(r_mid.center().x, r_mid.center().y + 10.0), r_mid.height() * 0.22, acc);
-            let title = if threats > 0 { plural(threats, "threat") + " found" } else { "No threats found".to_string() };
-            p.text(Pos2::new(r_mid.center().x, r_mid.top() + 64.0), Align2::CENTER_CENTER, title, FontId::proportional(34.0), TEXT);
-            let sub = if review > 0 { format!("{} worth a look", plural(review, "background item")) } else { "Your background items look clean".to_string() };
-            p.text(Pos2::new(r_mid.center().x, r_mid.bottom() - 40.0), Align2::CENTER_CENTER, sub, FontId::proportional(15.0), BODY);
+            art::panel(
+                &p,
+                r_mid,
+                20.0,
+                mix(
+                    Color32::WHITE,
+                    acc,
+                    if resp.hovered() { 0.20 } else { 0.14 },
+                ),
+                mix(Color32::WHITE, acc, 0.12),
+                Stroke::NONE,
+            );
+            art::hero(
+                &p,
+                page.outline(),
+                page.glyph(),
+                Pos2::new(r_mid.center().x, r_mid.center().y + 10.0),
+                r_mid.height() * 0.22,
+                acc,
+            );
+            let title = if threats > 0 {
+                plural(threats, "threat") + " found"
+            } else {
+                "No threats found".to_string()
+            };
+            p.text(
+                Pos2::new(r_mid.center().x, r_mid.top() + 64.0),
+                Align2::CENTER_CENTER,
+                title,
+                FontId::proportional(34.0),
+                TEXT,
+            );
+            let sub = if review > 0 {
+                format!("{} worth a look", plural(review, "background item"))
+            } else {
+                "Your background items look clean".to_string()
+            };
+            p.text(
+                Pos2::new(r_mid.center().x, r_mid.bottom() - 40.0),
+                Align2::CENTER_CENTER,
+                sub,
+                FontId::proportional(15.0),
+                BODY,
+            );
             if resp.clicked() {
                 go = Some(Page::Protection);
             }
@@ -316,52 +497,154 @@ impl CleanerApp {
             }
             return;
         }
-        let again = Rect::from_min_size(Pos2::new(rect.right() - 120.0, rect.bottom() - 40.0), Vec2::new(120.0, 30.0));
-        if ui.put(again, egui::Button::new(RichText::new("Start over").size(13.0)).fill(Color32::WHITE).stroke(Stroke::new(1.0, EDGE)).corner_radius(10.0)).clicked() {
+        let again = Rect::from_min_size(
+            Pos2::new(rect.right() - 120.0, rect.bottom() - 40.0),
+            Vec2::new(120.0, 30.0),
+        );
+        if ui
+            .put(
+                again,
+                egui::Button::new(RichText::new("Start over").size(13.0))
+                    .fill(Color32::WHITE)
+                    .stroke(Stroke::new(1.0, EDGE))
+                    .corner_radius(10.0),
+            )
+            .clicked()
+        {
             self.smart_done = false;
         }
-        if self.action_job.is_none() && round_button(ui, "Run", Page::Smart.accent()) {
-            let paths: Vec<(PathBuf, u64)> = self
-                .junk
-                .iter()
-                .flatten()
-                .filter(|g| g.kind != JunkKind::Trash)
-                .flat_map(|g| g.items.iter().filter(|i| i.selected).map(|i| (i.path.clone(), i.size)))
-                .collect();
-            if paths.is_empty() {
-                self.toast("Nothing to clean right now.");
+        if self.action_job.is_none()
+            && self.task_job.is_none()
+            && round_button(ui, "Run", Page::Smart.accent())
+        {
+            let paths: Vec<(PathBuf, u64)> = if self.settings.smart_cleanup {
+                self.junk
+                    .iter()
+                    .flatten()
+                    .filter(|g| g.kind != JunkKind::Trash)
+                    .flat_map(|g| {
+                        g.items
+                            .iter()
+                            .filter(|i| i.selected)
+                            .map(|i| (i.path.clone(), i.size))
+                    })
+                    .collect()
             } else {
-                self.pending = Some(Pending::Trash { title: format!("Clean up {} of junk?", human(junk_size)), paths });
+                vec![]
+            };
+            let cmds: Vec<(usize, bool, String)> = if self.settings.smart_performance {
+                self.tasks
+                    .iter()
+                    .enumerate()
+                    .filter(|t| t.1.selected)
+                    .map(|(i, t)| (i, t.admin, t.cmd.to_string()))
+                    .collect()
+            } else {
+                vec![]
+            };
+            if paths.is_empty() && cmds.is_empty() {
+                self.toast("Nothing to run. Tick Cleanup or Performance, or review a card.");
+            }
+            if !cmds.is_empty() {
+                self.task_job = Some(Job::spawn(move |p| scan::run_tasks(cmds, p)));
+            }
+            if !paths.is_empty() {
+                self.pending = Some(Pending::Trash {
+                    title: format!("Clean up {} of junk?", human(junk_size)),
+                    paths,
+                });
             }
         }
     }
 
     /// One glassy card on the Smart Scan screen. Returns true when it was clicked.
-    fn smart_card(&self, ui: &mut Ui, rect: Rect, page: Page, art_at: (f32, f32, f32), big: &str, small: &str) -> bool {
-        let resp = ui.interact(rect, ui.scope_id().with(("card", page as usize)), Sense::click());
+    #[allow(clippy::too_many_arguments)]
+    fn smart_card(
+        &self,
+        ui: &mut Ui,
+        rect: Rect,
+        page: Page,
+        art_at: (f32, f32, f32),
+        big: &str,
+        small: &str,
+        check: Option<bool>,
+        review: bool,
+    ) -> (bool, bool) {
+        let resp = ui.interact(
+            rect,
+            ui.scope_id().with(("card", page as usize)),
+            Sense::click(),
+        );
         let p = ui.painter().with_clip_rect(rect);
         let acc = page.accent();
         let k = if resp.hovered() { 28 } else { 16 };
         let fill = if k > 16 { GROUND } else { Color32::WHITE };
         art::panel(&p, rect, 16.0, fill, fill, Stroke::new(1.0, LINE));
         let (fx, fy, fr) = art_at;
-        let c = Pos2::new(rect.left() + rect.width() * fx, rect.top() + rect.height() * fy);
+        let c = Pos2::new(
+            rect.left() + rect.width() * fx,
+            rect.top() + rect.height() * fy,
+        );
         let r = rect.width().min(rect.height() * 1.6) * fr;
-        art::hero(&p.with_clip_rect(rect.shrink(1.5)), page.outline(), page.glyph(), c, r, acc);
-        p.text(rect.left_top() + Vec2::new(22.0, 24.0), Align2::LEFT_TOP, page.name(), FontId::proportional(17.0), TEXT);
-        let wrap = rect.width() - 44.0;
+        art::hero(
+            &p.with_clip_rect(rect.shrink(1.5)),
+            page.outline(),
+            page.glyph(),
+            c,
+            r,
+            acc,
+        );
+        let title_x = if check.is_some() { 50.0 } else { 22.0 };
+        p.text(
+            rect.left_top() + Vec2::new(title_x, 24.0),
+            Align2::LEFT_TOP,
+            page.name(),
+            FontId::proportional(17.0),
+            TEXT,
+        );
+        let wrap = rect.width() - 44.0 - if review { 88.0 } else { 0.0 };
         let sg = p.layout(small.to_string(), FontId::proportional(14.5), MUTED, wrap);
         let sy = rect.bottom() - 22.0 - sg.size().y;
         if !big.is_empty() {
             let size = if rect.width() < 260.0 { 30.0 } else { 34.0 };
             let bg = p.layout(big.to_string(), FontId::proportional(size), TEXT, wrap);
-            p.galley(Pos2::new(rect.left() + 22.0, sy - bg.size().y - 4.0), bg, TEXT);
+            p.galley(
+                Pos2::new(rect.left() + 22.0, sy - bg.size().y - 4.0),
+                bg,
+                TEXT,
+            );
         }
         p.galley(Pos2::new(rect.left() + 22.0, sy), sg, MUTED);
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
-        resp.clicked()
+        let mut clicked = resp.clicked();
+        let mut toggled = false;
+        if let Some(on) = check {
+            let mut v = on;
+            let cr =
+                Rect::from_min_size(rect.left_top() + Vec2::new(20.0, 22.0), Vec2::splat(22.0));
+            toggled = ui
+                .put(cr, egui::Checkbox::without_text(&mut v))
+                .on_hover_text("Include in Run")
+                .changed();
+        }
+        if review {
+            let br = Rect::from_min_size(
+                Pos2::new(rect.right() - 98.0, rect.bottom() - 50.0),
+                Vec2::new(80.0, 30.0),
+            );
+            clicked |= ui
+                .put(
+                    br,
+                    egui::Button::new(RichText::new("Review").size(13.0))
+                        .fill(Color32::WHITE)
+                        .stroke(Stroke::new(1.0, EDGE))
+                        .corner_radius(10.0),
+                )
+                .clicked();
+        }
+        (clicked, toggled)
     }
 
     // ------------------------------------------------------------------ cleanup
@@ -380,101 +663,7 @@ impl CleanerApp {
             return;
         }
         self.header(ui, "Caches, logs and leftovers you can safely remove");
-        let accent = Page::Cleanup.accent();
-        let busy = self.action_job.is_some();
-        let groups = self.junk.as_mut().unwrap();
-        let total: u64 = groups.iter().filter(|g| g.kind != JunkKind::Trash).map(|g| g.selected_size()).sum();
-        let trash_size: u64 = groups.iter().filter(|g| g.kind == JunkKind::Trash).map(|g| g.total()).sum();
-        let (mut rescan, mut empty) = (false, false);
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(human(total)).size(34.0).strong().color(TEXT));
-            ui.label(RichText::new("selected to clean").size(15.0).color(MUTED));
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ghost(ui, "Scan again").clicked() {
-                    rescan = true;
-                }
-                if trash_size > 0 && ghost(ui, &scan::words(&format!("Empty Trash ({})", human(trash_size)))).clicked() {
-                    empty = true;
-                }
-            });
-        });
-        ui.add_space(8.0);
-        let h = ui.available_height() - 80.0;
-        egui::ScrollArea::vertical().max_height(h).auto_shrink([false; 2]).show(ui, |ui| {
-            for g in groups.iter_mut() {
-                card(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        if g.kind != JunkKind::Trash {
-                            let mut a = g.items.iter().any(|i| !i.in_use) && g.items.iter().all(|i| i.selected || i.in_use);
-                            if ui.checkbox(&mut a, "").changed() {
-                                for i in g.items.iter_mut() {
-                                    i.selected = a && !i.in_use;
-                                }
-                            }
-                        } else {
-                            ui.add_space(26.0);
-                        }
-                        glyph_tile(ui, junk_glyph(g.kind), accent, 34.0);
-                        ui.vertical(|ui| {
-                            ui.label(RichText::new(g.title).size(16.0).strong());
-                            ui.label(RichText::new(g.desc).size(12.5).color(MUTED));
-                        });
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            let arrow = if g.expanded { "▾" } else { "▸" };
-                            if !g.items.is_empty() && ui.add(egui::Button::new(arrow).frame(false)).clicked() {
-                                g.expanded = !g.expanded;
-                            }
-                            ui.label(RichText::new(human(g.total())).size(15.0).strong());
-                            ui.label(RichText::new(plural(g.items.len(), "item")).color(DIM));
-                        });
-                    });
-                    if let Some(n) = &g.note {
-                        ui.label(RichText::new(n).size(12.0).color(WARN));
-                    }
-                    if g.expanded {
-                        ui.separator();
-                        for it in g.items.iter_mut().take(300) {
-                            ui.horizontal(|ui| {
-                                ui.add_space(24.0);
-                                if g.kind != JunkKind::Trash {
-                                    ui.checkbox(&mut it.selected, "");
-                                }
-                                ui.label(RichText::new(&it.name).size(13.0)).on_hover_text(short(&it.path));
-                                if it.in_use {
-                                    ui.label(RichText::new("in use · quit the app to include").size(11.5).color(WARN));
-                                }
-                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    ui.label(RichText::new(human(it.size)).size(13.0).color(MUTED));
-                                });
-                            });
-                        }
-                    }
-                });
-                ui.add_space(8.0);
-            }
-        });
-        let clean = !busy && round_button(ui, "Clean", accent);
-        if rescan {
-            self.junk_job = Some(Job::spawn(scan::scan_junk));
-        }
-        if clean {
-            let paths: Vec<_> = self
-                .junk
-                .iter()
-                .flatten()
-                .filter(|g| g.kind != JunkKind::Trash)
-                .flat_map(|g| g.items.iter().filter(|i| i.selected).map(|i| (i.path.clone(), i.size)))
-                .collect();
-            if paths.is_empty() {
-                self.toast("Tick something to clean first.");
-            } else {
-                self.pending = Some(Pending::Trash { title: format!("Clean up {}?", human(total)), paths });
-            }
-        }
-        if empty {
-            self.pending = Some(Pending::EmptyTrash { size: trash_size });
-        }
+        self.cleanup_manager(ui);
     }
 
     // ------------------------------------------------------------------ protection
@@ -495,7 +684,11 @@ impl CleanerApp {
         // privacy items and app permissions exist only on a Mac
         if scan::mac() {
             self.header(ui, "Malware, privacy traces and app permissions");
-            let labels = vec!["Malware Removal".to_string(), "Privacy".to_string(), "App Permissions".to_string()];
+            let labels = vec![
+                "Malware Removal".to_string(),
+                "Privacy".to_string(),
+                "App Permissions".to_string(),
+            ];
             tabs(ui, &labels, &mut self.prot_tab);
             ui.add_space(8.0);
             if self.prot_tab == 1 {
@@ -513,14 +706,28 @@ impl CleanerApp {
         let accent = Page::Protection.accent();
         let show_ok = &mut self.show_ok_agents;
         let items = self.agents.as_mut().unwrap();
-        let threats = items.iter().filter(|i| i.verdict == Verdict::Threat).count();
-        let review = items.iter().filter(|i| i.verdict == Verdict::Review).count();
+        let threats = items
+            .iter()
+            .filter(|i| i.verdict == Verdict::Threat)
+            .count();
+        let review = items
+            .iter()
+            .filter(|i| i.verdict == Verdict::Review)
+            .count();
         let mut rescan = false;
         ui.horizontal(|ui| {
-            let (txt, col) = if threats > 0 { (plural(threats, "threat") + " found", BAD) } else { ("No threats found".to_string(), GOOD) };
+            let (txt, col) = if threats > 0 {
+                (plural(threats, "threat") + " found", BAD)
+            } else {
+                ("No threats found".to_string(), GOOD)
+            };
             ui.label(RichText::new(txt).size(30.0).strong().color(col));
             if review > 0 {
-                ui.label(RichText::new(format!("· {review} to review")).size(15.0).color(WARN));
+                ui.label(
+                    RichText::new(format!("· {review} to review"))
+                        .size(15.0)
+                        .color(WARN),
+                );
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ghost(ui, "Scan again").clicked() {
@@ -531,7 +738,11 @@ impl CleanerApp {
         });
         let mut by_cat: Vec<(String, usize)> = vec![];
         for it in items.iter().filter(|i| i.verdict == Verdict::Threat) {
-            let c = if it.category.is_empty() { "Unwanted".to_string() } else { it.category.clone() };
+            let c = if it.category.is_empty() {
+                "Unwanted".to_string()
+            } else {
+                it.category.clone()
+            };
             match by_cat.iter_mut().find(|x| x.0 == c) {
                 Some(x) => x.1 += 1,
                 None => by_cat.push((c, 1)),
@@ -562,26 +773,32 @@ impl CleanerApp {
         ui.add_space(8.0);
         let show_ok = *show_ok;
         let h = ui.available_height() - 80.0;
-        egui::ScrollArea::vertical().max_height(h).auto_shrink([false; 2]).show(ui, |ui| {
-            let mut shown = 0;
-            for it in items.iter_mut() {
-                if it.verdict == Verdict::Ok && !show_ok {
-                    continue;
+        egui::ScrollArea::vertical()
+            .max_height(h)
+            .auto_shrink([false; 2])
+            .show(ui, |ui| {
+                let mut shown = 0;
+                for it in items.iter_mut() {
+                    if it.verdict == Verdict::Ok && !show_ok {
+                        continue;
+                    }
+                    shown += 1;
+                    agent_row(ui, it);
+                    ui.add_space(6.0);
                 }
-                shown += 1;
-                agent_row(ui, it);
-                ui.add_space(6.0);
-            }
-            if shown == 0 {
-                ui.add_space(30.0);
-                ui.vertical_centered(|ui| {
-                    let (r, _) = ui.allocate_exact_size(Vec2::splat(90.0), Sense::hover());
-                    art::glyph(ui.painter(), Glyph::Shield, r, GOOD);
-                    ui.label(RichText::new("Everything looks fine.").size(18.0));
-                    ui.label(RichText::new("Tick “Show all items” to see every background helper.").color(MUTED));
-                });
-            }
-        });
+                if shown == 0 {
+                    ui.add_space(30.0);
+                    ui.vertical_centered(|ui| {
+                        let (r, _) = ui.allocate_exact_size(Vec2::splat(90.0), Sense::hover());
+                        art::glyph(ui.painter(), Glyph::Shield, r, GOOD);
+                        ui.label(RichText::new("Everything looks fine.").size(18.0));
+                        ui.label(
+                            RichText::new("Tick “Show all items” to see every background helper.")
+                                .color(MUTED),
+                        );
+                    });
+                }
+            });
         let n = self.agents.iter().flatten().filter(|i| i.selected).count();
         let remove = n > 0 && !busy && round_button(ui, "Remove", accent);
         if load_db {
@@ -589,7 +806,10 @@ impl CleanerApp {
                 match crate::threats::install(&f) {
                     Ok(db) => {
                         self.db_info = (db.families.len(), db.signatures(), db.updated.clone());
-                        self.toast(format!("Threat database from {} loaded. Scanning again…", db.updated));
+                        self.toast(format!(
+                            "Threat database from {} loaded. Scanning again…",
+                            db.updated
+                        ));
                         rescan = true;
                     }
                     Err(e) => self.toast(format!("Couldn't use that file: {e}")),
@@ -601,9 +821,24 @@ impl CleanerApp {
         }
         if remove {
             // running threats are stopped after the person confirms (see confirm_dialog)
-            self.pending_stop = self.agents.iter().flatten().filter(|i| i.selected).filter_map(|i| i.pid).collect();
-            let paths: Vec<_> = self.agents.iter().flatten().filter(|i| i.selected).map(|i| (i.path.clone(), 0)).collect();
-            self.pending = Some(Pending::Trash { title: format!("Remove {}?", plural(paths.len(), "threat")), paths });
+            self.pending_stop = self
+                .agents
+                .iter()
+                .flatten()
+                .filter(|i| i.selected)
+                .filter_map(|i| i.pid)
+                .collect();
+            let paths: Vec<_> = self
+                .agents
+                .iter()
+                .flatten()
+                .filter(|i| i.selected)
+                .map(|i| (i.path.clone(), 0))
+                .collect();
+            self.pending = Some(Pending::Trash {
+                title: format!("Remove {}?", plural(paths.len(), "threat")),
+                paths,
+            });
         }
     }
 
@@ -623,7 +858,13 @@ impl CleanerApp {
             self.agents_job = Some(Job::spawn(scan::scan_agents));
         }
         self.refresh_procs();
-        self.header(ui, &format!("Keep your {} quick with maintenance and a tidy startup", scan::computer()));
+        self.header(
+            ui,
+            &format!(
+                "Keep your {} quick with maintenance and a tidy startup",
+                scan::computer()
+            ),
+        );
         let accent = Page::Performance.accent();
         let labels = vec![
             format!("Maintenance ({})", self.tasks.len()),
@@ -632,7 +873,10 @@ impl CleanerApp {
                 _ => "Login items".to_string(),
             },
             match &self.agents {
-                Some(v) => format!("Background items ({})", v.iter().filter(|a| a.place != "Applications").count()),
+                Some(v) => format!(
+                    "Background items ({})",
+                    v.iter().filter(|a| a.place != "Applications").count()
+                ),
                 None => "Background items".to_string(),
             },
             "Memory".to_string(),
@@ -643,36 +887,54 @@ impl CleanerApp {
         let mut run = false;
         match self.perf_tab {
             0 => {
-                egui::ScrollArea::vertical().max_height(h).auto_shrink([false; 2]).show(ui, |ui| {
-                    for t in self.tasks.iter_mut() {
-                        card(ui, |ui| {
-                            ui.set_width(ui.available_width());
-                            ui.horizontal(|ui| {
-                                ui.checkbox(&mut t.selected, "");
-                                glyph_tile(ui, task_glyph(t.title), accent, 34.0);
-                                ui.vertical(|ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label(RichText::new(t.title).size(15.0).strong());
-                                        if t.admin {
-                                            ui.label(RichText::new("asks for your password").size(11.5).color(MUTED));
-                                        }
+                egui::ScrollArea::vertical()
+                    .max_height(h)
+                    .auto_shrink([false; 2])
+                    .show(ui, |ui| {
+                        for t in self.tasks.iter_mut() {
+                            card(ui, |ui| {
+                                ui.set_width(ui.available_width());
+                                ui.horizontal(|ui| {
+                                    ui.checkbox(&mut t.selected, "");
+                                    glyph_tile(ui, task_glyph(t.title), accent, 34.0);
+                                    ui.vertical(|ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.label(RichText::new(t.title).size(15.0).strong());
+                                            if t.admin {
+                                                ui.label(
+                                                    RichText::new("asks for your password")
+                                                        .size(11.5)
+                                                        .color(MUTED),
+                                                );
+                                            }
+                                        });
+                                        ui.label(RichText::new(t.desc).size(12.5).color(MUTED));
                                     });
-                                    ui.label(RichText::new(t.desc).size(12.5).color(MUTED));
+                                    if let Some(l) = &t.last {
+                                        ui.with_layout(
+                                            Layout::right_to_left(Align::Center),
+                                            |ui| {
+                                                let c = if l == "Done" { GOOD } else { WARN };
+                                                ui.label(
+                                                    RichText::new(elide(l, 50)).size(12.5).color(c),
+                                                );
+                                            },
+                                        );
+                                    }
                                 });
-                                if let Some(l) = &t.last {
-                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                        let c = if l == "Done" { GOOD } else { WARN };
-                                        ui.label(RichText::new(elide(l, 50)).size(12.5).color(c));
-                                    });
-                                }
                             });
-                        });
-                        ui.add_space(6.0);
-                    }
-                });
+                            ui.add_space(6.0);
+                        }
+                    });
                 if let Some(j) = &self.task_job {
                     let r = ui.max_rect();
-                    ui.painter().text(Pos2::new(r.center().x, r.bottom() - 40.0), Align2::CENTER_CENTER, j.status(), FontId::proportional(14.0), TEXT);
+                    ui.painter().text(
+                        Pos2::new(r.center().x, r.bottom() - 40.0),
+                        Align2::CENTER_CENTER,
+                        j.status(),
+                        FontId::proportional(14.0),
+                        TEXT,
+                    );
                 } else {
                     run = round_button(ui, "Run", accent);
                 }
@@ -737,8 +999,18 @@ impl CleanerApp {
                     });
                     let n = items.iter().filter(|i| i.selected).count();
                     if n > 0 && !busy && round_button(ui, "Remove", accent) {
-                        let paths: Vec<_> = items.iter().filter(|i| i.selected).map(|i| (i.path.clone(), 0)).collect();
-                        self.pending = Some(Pending::Trash { title: scan::words(&format!("Move {} to the Trash?", plural(paths.len(), "background item"))), paths });
+                        let paths: Vec<_> = items
+                            .iter()
+                            .filter(|i| i.selected)
+                            .map(|i| (i.path.clone(), 0))
+                            .collect();
+                        self.pending = Some(Pending::Trash {
+                            title: scan::words(&format!(
+                                "Move {} to the Trash?",
+                                plural(paths.len(), "background item")
+                            )),
+                            paths,
+                        });
                     }
                 }
             }
@@ -749,12 +1021,19 @@ impl CleanerApp {
                 card(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.label(RichText::new("Heavy memory users").size(17.0).strong());
-                    ui.label(RichText::new("Quit apps you aren't using to free memory.").size(12.5).color(MUTED));
+                    ui.label(
+                        RichText::new("Quit apps you aren't using to free memory.")
+                            .size(12.5)
+                            .color(MUTED),
+                    );
                     ui.add_space(4.0);
                     let maxm = self.procs.first().map(|p| p.2).unwrap_or(1).max(1);
                     for (pid, name, mem, _cpu) in &self.procs {
                         ui.horizontal(|ui| {
-                            ui.add_sized([220.0, 20.0], egui::Label::new(RichText::new(elide(name, 30)).size(13.5)));
+                            ui.add_sized(
+                                [220.0, 20.0],
+                                egui::Label::new(RichText::new(elide(name, 30)).size(13.5)),
+                            );
                             bar(ui, *mem as f32 / maxm as f32, 220.0, accent);
                             ui.label(RichText::new(human(*mem)).size(12.5).color(MUTED));
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -766,13 +1045,24 @@ impl CleanerApp {
                     }
                 });
                 if let Some(pid) = quit {
-                    let name = self.procs.iter().find(|p| p.0 == pid).map(|p| p.1.clone()).unwrap_or_default();
+                    let name = self
+                        .procs
+                        .iter()
+                        .find(|p| p.0 == pid)
+                        .map(|p| p.1.clone())
+                        .unwrap_or_default();
                     self.pending = Some(Pending::Quit { pid, name });
                 }
             }
         }
         if run {
-            let cmds: Vec<_> = self.tasks.iter().enumerate().filter(|t| t.1.selected).map(|(i, t)| (i, t.admin, t.cmd.to_string())).collect();
+            let cmds: Vec<_> = self
+                .tasks
+                .iter()
+                .enumerate()
+                .filter(|t| t.1.selected)
+                .map(|(i, t)| (i, t.admin, t.cmd.to_string()))
+                .collect();
             if cmds.is_empty() {
                 self.toast("Tick a task to run first.");
             } else {
@@ -798,8 +1088,15 @@ impl CleanerApp {
         }
         // the updater and the leftovers of deleted apps exist only on a Mac
         if scan::mac() {
-            self.header(ui, "Uninstall apps, update them and clear what deleted apps left behind");
-            let labels = vec!["Uninstaller".to_string(), "Updater".to_string(), "Leftovers".to_string()];
+            self.header(
+                ui,
+                "Uninstall apps, update them and clear what deleted apps left behind",
+            );
+            let labels = vec![
+                "Uninstaller".to_string(),
+                "Updater".to_string(),
+                "Leftovers".to_string(),
+            ];
             tabs(ui, &labels, &mut self.apps_tab);
             ui.add_space(8.0);
             if self.apps_tab == 1 {
@@ -811,25 +1108,43 @@ impl CleanerApp {
                 return;
             }
         } else {
-            self.header(ui, "Remove apps completely, along with the files they leave behind");
+            self.header(
+                ui,
+                "Remove apps completely, along with the files they leave behind",
+            );
         }
         let accent = Page::Apps.accent();
         let busy = self.action_job.is_some();
         let apps = self.apps.as_ref().unwrap();
         let total: u64 = apps.iter().map(|a| a.total()).sum();
-        let leftovers: u64 = apps.iter().map(|a| a.leftovers.iter().map(|l| l.1).sum::<u64>()).sum();
+        let leftovers: u64 = apps
+            .iter()
+            .map(|a| a.leftovers.iter().map(|l| l.1).sum::<u64>())
+            .sum();
         let mut rescan = false;
         let mut toggle: Option<PathBuf> = None;
         ui.horizontal(|ui| {
             ui.label(RichText::new(plural(apps.len(), "app")).size(26.0).strong());
-            ui.label(RichText::new(format!("using {} · {} in settings and caches", human(total), human(leftovers))).size(14.0).color(MUTED));
+            ui.label(
+                RichText::new(format!(
+                    "using {} · {} in settings and caches",
+                    human(total),
+                    human(leftovers)
+                ))
+                .size(14.0)
+                .color(MUTED),
+            );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ghost(ui, "Refresh").clicked() {
                     rescan = true;
                 }
                 ui.checkbox(&mut self.apps_unused_only, "Unused for six months");
                 ui.checkbox(&mut self.app_sort_size, "Biggest first");
-                ui.add(egui::TextEdit::singleline(&mut self.app_filter).hint_text("Search apps").desired_width(150.0));
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.app_filter)
+                        .hint_text("Search apps")
+                        .desired_width(150.0),
+                );
             });
         });
         ui.add_space(6.0);
@@ -966,7 +1281,10 @@ impl CleanerApp {
             } else {
                 let mut paths = vec![(a.path.clone(), a.size)];
                 paths.extend(a.chosen());
-                self.pending = Some(Pending::Trash { title: format!("Uninstall {}?", a.name), paths });
+                self.pending = Some(Pending::Trash {
+                    title: format!("Uninstall {}?", a.name),
+                    paths,
+                });
             }
         }
         if let Some(i) = reset {
@@ -975,7 +1293,10 @@ impl CleanerApp {
                 let msg = format!("{} is open. Quit it first, then reset it.", a.name);
                 self.toast(msg);
             } else {
-                self.pending = Some(Pending::Trash { title: format!("Reset {}?", a.name), paths: a.chosen() });
+                self.pending = Some(Pending::Trash {
+                    title: format!("Reset {}?", a.name),
+                    paths: a.chosen(),
+                });
             }
         }
     }
@@ -984,7 +1305,12 @@ impl CleanerApp {
 
     pub fn page_clutter(&mut self, ui: &mut Ui) {
         if let Some(j) = &self.clutter_job {
-            let title = ["Looking for large files…", "Looking for duplicates…", "Looking at downloads…", "Looking for similar pictures…"][j.stage().min(3)];
+            let title = [
+                "Looking for large files…",
+                "Looking for duplicates…",
+                "Looking at downloads…",
+                "Looking for similar pictures…",
+            ][j.stage().min(3)];
             if self.working(ui, title, &j.status()) {
                 j.cancel();
             }
@@ -1009,14 +1335,32 @@ impl CleanerApp {
             }
             return;
         }
-        self.header(ui, &format!("Large, old, duplicate and downloaded files in {}", short(&self.clutter_root)));
+        self.header(
+            ui,
+            &format!(
+                "Large, old, duplicate and downloaded files in {}",
+                short(&self.clutter_root)
+            ),
+        );
         let accent = Page::Clutter.accent();
         let busy = self.action_job.is_some();
         let labels = vec![
-            format!("Large & old ({})", self.big.as_ref().map(|b| b.len()).unwrap_or(0)),
-            format!("Duplicates ({})", self.dups.as_ref().map(|b| b.len()).unwrap_or(0)),
-            format!("Downloads ({})", self.downloads.as_ref().map(|b| b.len()).unwrap_or(0)),
-            format!("Similar images ({})", self.similar.as_ref().map(|b| b.len()).unwrap_or(0)),
+            format!(
+                "Large & old ({})",
+                self.big.as_ref().map(|b| b.len()).unwrap_or(0)
+            ),
+            format!(
+                "Duplicates ({})",
+                self.dups.as_ref().map(|b| b.len()).unwrap_or(0)
+            ),
+            format!(
+                "Downloads ({})",
+                self.downloads.as_ref().map(|b| b.len()).unwrap_or(0)
+            ),
+            format!(
+                "Similar images ({})",
+                self.similar.as_ref().map(|b| b.len()).unwrap_or(0)
+            ),
         ];
         let mut rescan = false;
         ui.horizontal(|ui| {
@@ -1037,7 +1381,16 @@ impl CleanerApp {
                 let age_sel = &mut self.big_age_group;
                 let files = self.big.as_mut().unwrap();
                 ui.horizontal(|ui| {
-                    for k in ["All", "Video", "Audio", "Picture", "Archive", "Installer", "Document", "Other"] {
+                    for k in [
+                        "All",
+                        "Video",
+                        "Audio",
+                        "Picture",
+                        "Archive",
+                        "Installer",
+                        "Document",
+                        "Other",
+                    ] {
                         if ui.selectable_label(kind_sel == k, k).clicked() {
                             *kind_sel = k.to_string();
                         }
@@ -1064,35 +1417,74 @@ impl CleanerApp {
                 let visible: Vec<usize> = (0..files.len())
                     .filter(|&i| {
                         let f = &files[i];
-                        (kind_sel == "All" || f.kind == *kind_sel) && f.size > lo && f.size <= hi && age_matches(age, f.age_days)
+                        (kind_sel == "All" || f.kind == *kind_sel)
+                            && f.size > lo
+                            && f.size <= hi
+                            && age_matches(age, f.age_days)
                     })
                     .collect();
                 card(ui, |ui| {
                     ui.set_width(ui.available_width());
                     if visible.is_empty() {
-                        ui.label(RichText::new(format!("No files over {} match these filters.", human(LARGE_FILE_BYTES))).color(MUTED));
+                        ui.label(
+                            RichText::new(format!(
+                                "No files over {} match these filters.",
+                                human(LARGE_FILE_BYTES)
+                            ))
+                            .color(MUTED),
+                        );
                     }
                     if !visible.is_empty() {
                         file_header(ui);
                     }
-                    egui::ScrollArea::vertical().max_height(h - 104.0).auto_shrink([false; 2]).show_rows(ui, 26.0, visible.len(), |ui, range| {
-                        for &i in &visible[range] {
-                            let f = &mut files[i];
-                            file_row(ui, &mut f.selected, &f.name, &f.path, f.size, f.age_days, &f.kind);
-                        }
-                    });
+                    egui::ScrollArea::vertical()
+                        .max_height(h - 104.0)
+                        .auto_shrink([false; 2])
+                        .show_rows(ui, 26.0, visible.len(), |ui, range| {
+                            for &i in &visible[range] {
+                                let f = &mut files[i];
+                                file_row(
+                                    ui,
+                                    &mut f.selected,
+                                    &f.name,
+                                    &f.path,
+                                    f.size,
+                                    f.age_days,
+                                    &f.kind,
+                                );
+                            }
+                        });
                 });
-                selected = files.iter().filter(|f| f.selected).map(|f| (f.path.clone(), f.size)).collect();
+                selected = files
+                    .iter()
+                    .filter(|f| f.selected)
+                    .map(|f| (f.path.clone(), f.size))
+                    .collect();
             }
             1 => {
                 let groups = self.dups.get_or_insert_with(Vec::new);
                 let mut auto = false;
                 ui.horizontal(|ui| {
-                    let waste: u64 = groups.iter().map(|g| g.size * (g.files.len() as u64 - 1)).sum();
-                    ui.label(RichText::new(format!("{} of extra copies", human(waste))).size(16.0).strong());
-                    let fresh: u64 = groups.iter().filter(|g| g.files.iter().any(|f| f.age_days <= FRESH_DUPLICATE_DAYS)).map(|g| g.size * (g.files.len() as u64 - 1)).sum();
-                    ui.label(RichText::new(format!("· {} from the last 3 months", human(fresh))).color(MUTED));
-                    if !groups.is_empty() && ghost(ui, "Keep the newest, select the rest").clicked() {
+                    let waste: u64 = groups
+                        .iter()
+                        .map(|g| g.size * (g.files.len() as u64 - 1))
+                        .sum();
+                    ui.label(
+                        RichText::new(format!("{} of extra copies", human(waste)))
+                            .size(16.0)
+                            .strong(),
+                    );
+                    let fresh: u64 = groups
+                        .iter()
+                        .filter(|g| g.files.iter().any(|f| f.age_days <= FRESH_DUPLICATE_DAYS))
+                        .map(|g| g.size * (g.files.len() as u64 - 1))
+                        .sum();
+                    ui.label(
+                        RichText::new(format!("· {} from the last 3 months", human(fresh)))
+                            .color(MUTED),
+                    );
+                    if !groups.is_empty() && ghost(ui, "Keep the newest, select the rest").clicked()
+                    {
                         auto = true;
                     }
                 });
@@ -1103,43 +1495,67 @@ impl CleanerApp {
                         }
                     }
                 }
-                egui::ScrollArea::vertical().max_height(h - 40.0).auto_shrink([false; 2]).show(ui, |ui| {
-                    if groups.is_empty() {
-                        ui.label(RichText::new("No duplicate files found.").color(MUTED));
-                    }
-                    for g in groups.iter_mut().take(300) {
-                        card(ui, |ui| {
-                            ui.set_width(ui.available_width());
-                            ui.horizontal(|ui| {
-                                glyph_tile(ui, Glyph::Copy, accent, 30.0);
-                                ui.label(RichText::new(elide(&g.name, 50)).size(15.0).strong());
-                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    ui.label(RichText::new(format!("{} copies · {} each", g.files.len(), human(g.size))).color(MUTED));
-                                });
-                            });
-                            for f in g.files.iter_mut() {
+                egui::ScrollArea::vertical()
+                    .max_height(h - 40.0)
+                    .auto_shrink([false; 2])
+                    .show(ui, |ui| {
+                        if groups.is_empty() {
+                            ui.label(RichText::new("No duplicate files found.").color(MUTED));
+                        }
+                        for g in groups.iter_mut().take(300) {
+                            card(ui, |ui| {
+                                ui.set_width(ui.available_width());
                                 ui.horizontal(|ui| {
-                                    ui.add_space(30.0);
-                                    ui.checkbox(&mut f.selected, "");
-                                    ui.label(RichText::new(elide(&short(&f.path), 80)).size(12.5)).on_hover_text(f.path.display().to_string());
+                                    glyph_tile(ui, Glyph::Copy, accent, 30.0);
+                                    ui.label(RichText::new(elide(&g.name, 50)).size(15.0).strong());
                                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                        if ui.small_button("Reveal").clicked() {
-                                            reveal(&f.path);
-                                        }
-                                        ui.label(RichText::new(age_text(f.age_days)).size(12.0).color(DIM));
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "{} copies · {} each",
+                                                g.files.len(),
+                                                human(g.size)
+                                            ))
+                                            .color(MUTED),
+                                        );
                                     });
                                 });
-                            }
-                        });
-                        ui.add_space(6.0);
-                    }
-                });
+                                for f in g.files.iter_mut() {
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(30.0);
+                                        ui.checkbox(&mut f.selected, "");
+                                        ui.label(
+                                            RichText::new(elide(&short(&f.path), 80)).size(12.5),
+                                        )
+                                        .on_hover_text(f.path.display().to_string());
+                                        ui.with_layout(
+                                            Layout::right_to_left(Align::Center),
+                                            |ui| {
+                                                if ui.small_button("Reveal").clicked() {
+                                                    reveal(&f.path);
+                                                }
+                                                ui.label(
+                                                    RichText::new(age_text(f.age_days))
+                                                        .size(12.0)
+                                                        .color(DIM),
+                                                );
+                                            },
+                                        );
+                                    });
+                                }
+                            });
+                            ui.add_space(6.0);
+                        }
+                    });
                 // never take every copy of a file: the newest one stays if all are ticked
                 selected = groups
                     .iter()
                     .flat_map(|g| {
                         let all = g.files.iter().all(|f| f.selected);
-                        g.files.iter().skip(if all { 1 } else { 0 }).filter(|f| f.selected).map(move |f| (f.path.clone(), g.size))
+                        g.files
+                            .iter()
+                            .skip(if all { 1 } else { 0 })
+                            .filter(|f| f.selected)
+                            .map(move |f| (f.path.clone(), g.size))
                     })
                     .collect();
             }
@@ -1150,8 +1566,20 @@ impl CleanerApp {
                 let files = self.downloads.get_or_insert_with(Vec::new);
                 let mut auto = false;
                 ui.horizontal(|ui| {
-                    let old: u64 = files.iter().filter(|f| f.age_days > OLD_DOWNLOAD_DAYS).map(|f| f.size).sum();
-                    ui.label(RichText::new(format!("{} in downloads older than {} days", human(old), OLD_DOWNLOAD_DAYS)).size(16.0).strong());
+                    let old: u64 = files
+                        .iter()
+                        .filter(|f| f.age_days > OLD_DOWNLOAD_DAYS)
+                        .map(|f| f.size)
+                        .sum();
+                    ui.label(
+                        RichText::new(format!(
+                            "{} in downloads older than {} days",
+                            human(old),
+                            OLD_DOWNLOAD_DAYS
+                        ))
+                        .size(16.0)
+                        .strong(),
+                    );
                     if ghost(ui, "Select the old ones").clicked() {
                         auto = true;
                     }
@@ -1169,18 +1597,40 @@ impl CleanerApp {
                     if !files.is_empty() {
                         file_header(ui);
                     }
-                    egui::ScrollArea::vertical().max_height(h - 104.0).auto_shrink([false; 2]).show_rows(ui, 26.0, files.len(), |ui, range| {
-                        for f in &mut files[range] {
-                            file_row(ui, &mut f.selected, &f.name, &f.path, f.size, f.age_days, &f.kind);
-                        }
-                    });
+                    egui::ScrollArea::vertical()
+                        .max_height(h - 104.0)
+                        .auto_shrink([false; 2])
+                        .show_rows(ui, 26.0, files.len(), |ui, range| {
+                            for f in &mut files[range] {
+                                file_row(
+                                    ui,
+                                    &mut f.selected,
+                                    &f.name,
+                                    &f.path,
+                                    f.size,
+                                    f.age_days,
+                                    &f.kind,
+                                );
+                            }
+                        });
                 });
-                selected = files.iter().filter(|f| f.selected).map(|f| (f.path.clone(), f.size)).collect();
+                selected = files
+                    .iter()
+                    .filter(|f| f.selected)
+                    .map(|f| (f.path.clone(), f.size))
+                    .collect();
             }
         }
         if !selected.is_empty() && !busy && round_button(ui, "Remove", accent) {
             let total: u64 = selected.iter().map(|s| s.1).sum();
-            self.pending = Some(Pending::Trash { title: scan::words(&format!("Move {} ({}) to the Trash?", plural(selected.len(), "file"), human(total))), paths: selected });
+            self.pending = Some(Pending::Trash {
+                title: scan::words(&format!(
+                    "Move {} ({}) to the Trash?",
+                    plural(selected.len(), "file"),
+                    human(total)
+                )),
+                paths: selected,
+            });
         }
         if rescan {
             self.start_clutter();
@@ -1235,12 +1685,21 @@ impl CleanerApp {
         ui.horizontal(|ui| {
             glyph_tile(ui, Glyph::Lens, accent, 34.0);
             for (d, name) in &crumbs {
-                if ui.link(RichText::new(if name.is_empty() { "/" } else { name }).size(16.0).color(TEXT)).clicked() {
+                if ui
+                    .link(
+                        RichText::new(if name.is_empty() { "/" } else { name })
+                            .size(16.0)
+                            .color(TEXT),
+                    )
+                    .clicked()
+                {
                     go_depth = Some(*d);
                 }
                 ui.label(RichText::new("›").color(DIM));
             }
-            ui.label(RichText::new(format!("{} · {} items", human(node.size), node.items)).color(MUTED));
+            ui.label(
+                RichText::new(format!("{} · {} items", human(node.size), node.items)).color(MUTED),
+            );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ghost(ui, "Scan again").clicked() {
                     rescan = true;
@@ -1344,7 +1803,10 @@ impl CleanerApp {
             self.space_job = Some(Job::spawn(move |p| scan::scan_space(r, p)));
         }
         if let Some(t) = trash {
-            self.pending = Some(Pending::Trash { title: scan::words(&format!("Move “{}” to the Trash?", scan::file_name(&t.0))), paths: vec![t] });
+            self.pending = Some(Pending::Trash {
+                title: scan::words(&format!("Move “{}” to the Trash?", scan::file_name(&t.0))),
+                paths: vec![t],
+            });
         }
     }
 
@@ -1363,7 +1825,13 @@ impl CleanerApp {
             }
             return;
         }
-        self.header(ui, &format!("How much room your cloud folders take on this {}", scan::computer()));
+        self.header(
+            ui,
+            &format!(
+                "How much room your cloud folders take on this {}",
+                scan::computer()
+            ),
+        );
         let accent = Page::Cloud.accent();
         let busy = self.action_job.is_some();
         let folders = self.cloud.as_mut().unwrap();
@@ -1371,7 +1839,14 @@ impl CleanerApp {
         ui.horizontal(|ui| {
             let total: u64 = folders.iter().map(|f| f.local).sum();
             ui.label(RichText::new(human(total)).size(30.0).strong());
-            ui.label(RichText::new(format!("of cloud files stored on this {}", scan::computer())).size(15.0).color(MUTED));
+            ui.label(
+                RichText::new(format!(
+                    "of cloud files stored on this {}",
+                    scan::computer()
+                ))
+                .size(15.0)
+                .color(MUTED),
+            );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ghost(ui, "Scan again").clicked() {
                     rescan = true;
@@ -1387,7 +1862,10 @@ impl CleanerApp {
             });
         } else {
             let sel = self.cloud_sel.min(folders.len() - 1);
-            let labels: Vec<String> = folders.iter().map(|f| format!("{}  ·  {}", f.name, human(f.local))).collect();
+            let labels: Vec<String> = folders
+                .iter()
+                .map(|f| format!("{}  ·  {}", f.name, human(f.local)))
+                .collect();
             let mut s = sel;
             tabs(ui, &labels, &mut s);
             self.cloud_sel = s;
@@ -1405,16 +1883,38 @@ impl CleanerApp {
             card(ui, |ui| {
                 ui.set_width(ui.available_width());
                 if f.files.is_empty() {
-                    ui.label(RichText::new(format!("No large files are stored on this {} here.", scan::computer())).color(MUTED));
+                    ui.label(
+                        RichText::new(format!(
+                            "No large files are stored on this {} here.",
+                            scan::computer()
+                        ))
+                        .color(MUTED),
+                    );
                 }
-                egui::ScrollArea::vertical().max_height(h).auto_shrink([false; 2]).show_rows(ui, 26.0, f.files.len(), |ui, range| {
-                    for b in &mut f.files[range] {
-                        file_row(ui, &mut b.selected, &b.name, &b.path, b.size, b.age_days, &b.kind);
-                    }
-                });
+                egui::ScrollArea::vertical()
+                    .max_height(h)
+                    .auto_shrink([false; 2])
+                    .show_rows(ui, 26.0, f.files.len(), |ui, range| {
+                        for b in &mut f.files[range] {
+                            file_row(
+                                ui,
+                                &mut b.selected,
+                                &b.name,
+                                &b.path,
+                                b.size,
+                                b.age_days,
+                                &b.kind,
+                            );
+                        }
+                    });
             });
             let icloud = f.icloud;
-            let paths: Vec<_> = f.files.iter().filter(|b| b.selected).map(|b| (b.path.clone(), b.size)).collect();
+            let paths: Vec<_> = f
+                .files
+                .iter()
+                .filter(|b| b.selected)
+                .map(|b| (b.path.clone(), b.size))
+                .collect();
             if icloud && !paths.is_empty() && !busy && round_button(ui, "Free up", accent) {
                 self.pending = Some(Pending::Evict { paths });
             }
@@ -1429,7 +1929,16 @@ impl CleanerApp {
     pub fn page_tools(&mut self, ui: &mut Ui) {
         self.header(ui, "Handy one-click fixes and focused tools");
         // Browser Care talks to Safari and Chrome through macOS, so it is a Mac-only tab
-        let names: &[&str] = if scan::mac() { &["Quick Fixes", "Duplicate Finder", "Browser Care", "Screen Cleaning"] } else { &["Quick Fixes", "Duplicate Finder", "Screen Cleaning"] };
+        let names: &[&str] = if scan::mac() {
+            &[
+                "Quick Fixes",
+                "Duplicate Finder",
+                "Browser Care",
+                "Screen Cleaning",
+            ]
+        } else {
+            &["Quick Fixes", "Duplicate Finder", "Screen Cleaning"]
+        };
         let labels: Vec<String> = names.iter().map(|n| n.to_string()).collect();
         self.tools_tab = self.tools_tab.min(labels.len() - 1);
         tabs(ui, &labels, &mut self.tools_tab);
@@ -1441,7 +1950,10 @@ impl CleanerApp {
             _ => {}
         }
         let accent = Page::Tools.accent();
-        if self.trash_size.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(3)) {
+        if self
+            .trash_size
+            .is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(3))
+        {
             self.trash_size = Some((scan::trash_size_cached(), std::time::Instant::now()));
         }
         let trash_size = self.trash_size.map(|t| t.0).unwrap_or(0);
@@ -1452,58 +1964,102 @@ impl CleanerApp {
         let w = (ui.available_width() - (cols as f32 - 1.0) * 14.0) / cols as f32;
         let n = self.tasks.len() + 2;
         let busy = self.task_job.is_some() || self.action_job.is_some();
-        egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-            for row in 0..n.div_ceil(cols) {
-                ui.horizontal_top(|ui| {
-                    ui.spacing_mut().item_spacing.x = 14.0;
-                    for col in 0..cols {
-                        let i = row * cols + col;
-                        if i >= n {
-                            break;
-                        }
-                        card(ui, |ui| {
-                            ui.set_width(w - 34.0);
-                            ui.set_height(150.0);
-                            let (g, title, desc, last) = if i < self.tasks.len() {
-                                let t = &self.tasks[i];
-                                (task_glyph(t.title), t.title.to_string(), t.desc.to_string(), t.last.clone())
-                            } else if i == self.tasks.len() {
-                                (Glyph::Trash, scan::words("Empty the Trash"), scan::words(&format!("Erase {} in the Trash for good.{}", human(trash_size), if trash_size > TRASH_ALERT_BYTES { " It's getting big." } else { "" })), None)
-                            } else {
-                                (Glyph::Disk, if crate::linux::ON { "Disk usage" } else { "Storage settings" }.to_string(), if crate::windows::ON { "Open Windows' own storage overview." } else if crate::linux::ON { "Open your desktop's disk usage tool." } else { "Open macOS's own storage overview." }.to_string(), None)
-                            };
-                            glyph_tile(ui, g, accent, 38.0);
-                            ui.label(RichText::new(title).size(16.0).strong());
-                            // the text takes the same room in every card, so the buttons line up
-                            let top = ui.cursor().top();
-                            ui.label(RichText::new(desc).size(12.5).color(MUTED));
-                            ui.add_space((40.0 - (ui.cursor().top() - top)).max(0.0));
-                            ui.horizontal(|ui| {
-                                if !busy && pill(ui, if i == n - 1 { "Open" } else { "Run" }, accent).clicked() {
-                                    if i < self.tasks.len() {
-                                        run = Some(i);
-                                    } else if i == self.tasks.len() {
-                                        empty = true;
-                                    } else {
-                                        storage = true;
+        egui::ScrollArea::vertical()
+            .auto_shrink([false; 2])
+            .show(ui, |ui| {
+                for row in 0..n.div_ceil(cols) {
+                    ui.horizontal_top(|ui| {
+                        ui.spacing_mut().item_spacing.x = 14.0;
+                        for col in 0..cols {
+                            let i = row * cols + col;
+                            if i >= n {
+                                break;
+                            }
+                            card(ui, |ui| {
+                                ui.set_width(w - 34.0);
+                                ui.set_height(150.0);
+                                let (g, title, desc, last) = if i < self.tasks.len() {
+                                    let t = &self.tasks[i];
+                                    (
+                                        task_glyph(t.title),
+                                        t.title.to_string(),
+                                        t.desc.to_string(),
+                                        t.last.clone(),
+                                    )
+                                } else if i == self.tasks.len() {
+                                    (
+                                        Glyph::Trash,
+                                        scan::words("Empty the Trash"),
+                                        scan::words(&format!(
+                                            "Erase {} in the Trash for good.{}",
+                                            human(trash_size),
+                                            if trash_size > self.settings.trash_alert_bytes() {
+                                                " It's getting big."
+                                            } else {
+                                                ""
+                                            }
+                                        )),
+                                        None,
+                                    )
+                                } else {
+                                    (
+                                        Glyph::Disk,
+                                        if crate::linux::ON {
+                                            "Disk usage"
+                                        } else {
+                                            "Storage settings"
+                                        }
+                                        .to_string(),
+                                        if crate::windows::ON {
+                                            "Open Windows' own storage overview."
+                                        } else if crate::linux::ON {
+                                            "Open your desktop's disk usage tool."
+                                        } else {
+                                            "Open macOS's own storage overview."
+                                        }
+                                        .to_string(),
+                                        None,
+                                    )
+                                };
+                                glyph_tile(ui, g, accent, 38.0);
+                                ui.label(RichText::new(title).size(16.0).strong());
+                                // the text takes the same room in every card, so the buttons line up
+                                let top = ui.cursor().top();
+                                ui.label(RichText::new(desc).size(12.5).color(MUTED));
+                                ui.add_space((40.0 - (ui.cursor().top() - top)).max(0.0));
+                                ui.horizontal(|ui| {
+                                    if !busy
+                                        && pill(ui, if i == n - 1 { "Open" } else { "Run" }, accent)
+                                            .clicked()
+                                    {
+                                        if i < self.tasks.len() {
+                                            run = Some(i);
+                                        } else if i == self.tasks.len() {
+                                            empty = true;
+                                        } else {
+                                            storage = true;
+                                        }
                                     }
-                                }
-                                if let Some(l) = last {
-                                    ui.label(RichText::new(elide(&l, 30)).size(12.0).color(if l == "Done" { GOOD } else { WARN }));
-                                }
+                                    if let Some(l) = last {
+                                        ui.label(
+                                            RichText::new(elide(&l, 30))
+                                                .size(12.0)
+                                                .color(if l == "Done" { GOOD } else { WARN }),
+                                        );
+                                    }
+                                });
                             });
-                        });
-                    }
-                });
-                ui.add_space(14.0);
-            }
-            if let Some(j) = &self.task_job {
-                ui.horizontal(|ui| {
-                    ui.add(egui::Spinner::new());
-                    ui.label(RichText::new(j.status()).color(MUTED));
-                });
-            }
-        });
+                        }
+                    });
+                    ui.add_space(14.0);
+                }
+                if let Some(j) = &self.task_job {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Spinner::new());
+                        ui.label(RichText::new(j.status()).color(MUTED));
+                    });
+                }
+            });
         if let Some(i) = run {
             let t = &self.tasks[i];
             let cmds = vec![(i, t.admin, t.cmd.to_string())];
@@ -1520,9 +2076,13 @@ impl CleanerApp {
             if crate::windows::ON {
                 crate::windows::open_storage_settings();
             } else if !crate::linux::ON {
-                let _ = std::process::Command::new("open").arg("x-apple.systempreferences:com.apple.settings.Storage").spawn();
+                let _ = std::process::Command::new("open")
+                    .arg("x-apple.systempreferences:com.apple.settings.Storage")
+                    .spawn();
             } else if !crate::linux::open_disk_usage() {
-                self.toast("No disk usage tool is installed. The Space Map screen shows the same thing.");
+                self.toast(
+                    "No disk usage tool is installed. The Space Map screen shows the same thing.",
+                );
             }
         }
     }
@@ -1530,47 +2090,120 @@ impl CleanerApp {
     // ------------------------------------------------------------------ activity
 
     pub fn page_activity(&mut self, ui: &mut Ui) {
-        self.header(ui, &format!("How your {} is doing, and what was cleaned", scan::computer()));
+        self.header(
+            ui,
+            &format!(
+                "How your {} is doing, and what was cleaned",
+                scan::computer()
+            ),
+        );
         let accent = Page::Activity.accent();
         let free = self.disk_free;
-        let limit = scan::low_disk_limit(self.disk_total);
+        let limit = self.settings.low_disk_bytes(self.disk_total);
         let mem = self.mem_used as f32 / self.mem_total as f32;
         let cpu = self.cpu / 100.0;
-        if self.trash_size.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(5)) {
+        if self
+            .trash_size
+            .is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(5))
+        {
             self.trash_size = Some((scan::trash_size_cached(), std::time::Instant::now()));
         }
         let trash = self.trash_size.map(|t| t.0).unwrap_or(0);
-        if self.unused_apps.is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(60)) {
+        if self
+            .unused_apps
+            .is_none_or(|(_, t)| t.elapsed() > Duration::from_secs(60))
+        {
             self.unused_apps = Some((scan::apps_summary().unused.len(), std::time::Instant::now()));
         }
         let unused = self.unused_apps.map(|u| u.0).unwrap_or(0);
         let uptime_days = sysinfo::System::uptime().unwrap_or(0) / 86_400;
         let battery_cond = self.battery_condition.lock().unwrap().clone();
-        let battery_bad = battery_cond.as_deref().is_some_and(|c| !c.eq_ignore_ascii_case("normal"));
+        let battery_bad = battery_cond
+            .as_deref()
+            .is_some_and(|c| !c.eq_ignore_ascii_case("normal"));
         let smart_days = scan::days_since_logged(&self.history, scan::SMART_SCAN_LOG);
         let threat_days = scan::days_since_logged(&self.history, scan::THREAT_SCAN_LOG);
         // (penalty, title, text, button, where it leads), biggest penalty first
         let mut issues: Vec<(i64, String, String, &str, (Page, usize))> = vec![];
         if battery_bad {
-            issues.push((PENALTY_CRITICAL_BATTERY, "Your battery needs service".into(), format!("{} reports its condition as “{}”.", if crate::linux::ON || crate::windows::ON { "Your system" } else { "macOS" }, battery_cond.clone().unwrap_or_default()), "See Activity", (Page::Activity, 0)));
+            issues.push((
+                PENALTY_CRITICAL_BATTERY,
+                "Your battery needs service".into(),
+                format!(
+                    "{} reports its condition as “{}”.",
+                    if crate::linux::ON || crate::windows::ON {
+                        "Your system"
+                    } else {
+                        "macOS"
+                    },
+                    battery_cond.clone().unwrap_or_default()
+                ),
+                "See Activity",
+                (Page::Activity, 0),
+            ));
         }
         if free < limit {
-            issues.push((PENALTY_OUT_OF_DISK, "Your disk is getting full".into(), format!("Only {} is left. Clean up junk to make room.", human(free)), "Clean Up Junk", (Page::Cleanup, 0)));
+            issues.push((
+                PENALTY_OUT_OF_DISK,
+                "Your disk is getting full".into(),
+                format!("Only {} is left. Clean up junk to make room.", human(free)),
+                "Clean Up Junk",
+                (Page::Cleanup, 0),
+            ));
         }
-        if smart_days.is_none_or(|d| d > RECENT_SCAN_DAYS) {
-            issues.push((PENALTY_NO_SMART_SCAN, "Run a Smart Scan".into(), format!("It's been a while since your {} had a full checkup.", scan::computer()), "Smart Scan", (Page::Smart, 0)));
+        if smart_days.is_none_or(|d| d > self.settings.scan_reminder_days) {
+            issues.push((
+                PENALTY_NO_SMART_SCAN,
+                "Run a Smart Scan".into(),
+                format!(
+                    "It's been a while since your {} had a full checkup.",
+                    scan::computer()
+                ),
+                "Smart Scan",
+                (Page::Smart, 0),
+            ));
         }
         if unused > 0 {
-            issues.push((PENALTY_UNUSED_APPS, "Remove apps you don't use".into(), format!("{} not opened for six months.", plural(unused, "app")), "See Apps", (Page::Apps, 0)));
+            issues.push((
+                PENALTY_UNUSED_APPS,
+                "Remove apps you don't use".into(),
+                format!("{} not opened for six months.", plural(unused, "app")),
+                "See Apps",
+                (Page::Apps, 0),
+            ));
         }
-        if trash > TRASH_ALERT_BYTES {
-            issues.push((PENALTY_TRASH_OVERFILL, scan::words("Your Trash is getting big"), format!("It holds {}. Empty it to get the space back.", human(trash)), "Open Tools", (Page::Tools, 0)));
+        if trash > self.settings.trash_alert_bytes() {
+            issues.push((
+                PENALTY_TRASH_OVERFILL,
+                scan::words("Your Trash is getting big"),
+                format!("It holds {}. Empty it to get the space back.", human(trash)),
+                "Open Tools",
+                (Page::Tools, 0),
+            ));
         }
         if uptime_days > UPTIME_WARN_DAYS {
-            issues.push((PENALTY_UPTIME, "Time to restart".into(), format!("Your {} has been running for {uptime_days} days. Restart it once in a while.", scan::computer()), "OK", (Page::Activity, 0)));
+            issues.push((
+                PENALTY_UPTIME,
+                "Time to restart".into(),
+                format!(
+                    "Your {} has been running for {uptime_days} days. Restart it once in a while.",
+                    scan::computer()
+                ),
+                "OK",
+                (Page::Activity, 0),
+            ));
         }
-        if threat_days.is_none_or(|d| d > RECENT_SCAN_DAYS) {
-            issues.push((PENALTY_NO_THREAT_SCAN, "Check for threats".into(), format!("Scan with the threat database ({} families) to stay safe.", self.db_info.0), "Scan for Threats", (Page::Protection, 0)));
+        if threat_days.is_none_or(|d| d > self.settings.scan_reminder_days) {
+            issues.push((
+                PENALTY_NO_THREAT_SCAN,
+                "Check for threats".into(),
+                format!(
+                    "Scan with the threat database ({} families) to stay safe.",
+                    self.db_info.0
+                ),
+                "Scan for Threats",
+                (Page::Protection, 0),
+            ));
         }
         issues.sort_by(|a, b| b.0.cmp(&a.0));
         let score = (MAX_HEALTH_SCORE - issues.iter().map(|i| i.0).sum::<i64>()).max(0);
@@ -1584,10 +2217,25 @@ impl CleanerApp {
                 ui.label(RichText::new(format!("{score} / {MAX_HEALTH_SCORE}")).size(15.0).color(MUTED))
                     .on_hover_text("Based on disk space, Trash size, battery condition, time since restart, unused apps and how recently you scanned.");
             });
-            ui.label(RichText::new(if crate::windows::ON { "Your PC" } else if crate::linux::ON { "Your computer" } else { "Your Mac" }).color(MUTED));
+            ui.label(
+                RichText::new(if crate::windows::ON {
+                    "Your PC"
+                } else if crate::linux::ON {
+                    "Your computer"
+                } else {
+                    "Your Mac"
+                })
+                .color(MUTED),
+            );
             ui.add_space(6.0);
             let w = (ui.available_width() - 2.0 * 12.0) / 3.0;
-            let tile = |ui: &mut Ui, g: Glyph, title: &str, line: String, line_col: Color32, action: Option<&str>| -> bool {
+            let tile = |ui: &mut Ui,
+                        g: Glyph,
+                        title: &str,
+                        line: String,
+                        line_col: Color32,
+                        action: Option<&str>|
+             -> bool {
                 let mut clicked = false;
                 egui::Frame::new()
                     .fill(Color32::WHITE)
@@ -1607,7 +2255,15 @@ impl CleanerApp {
                         });
                         if let Some(a) = action {
                             ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
-                                if ui.add(egui::Button::new(RichText::new(a).size(15.0).strong().color(ACCENT_DARK)).frame(false)).clicked() {
+                                if ui
+                                    .add(
+                                        egui::Button::new(
+                                            RichText::new(a).size(15.0).strong().color(ACCENT_DARK),
+                                        )
+                                        .frame(false),
+                                    )
+                                    .clicked()
+                                {
                                     clicked = true;
                                 }
                             });
@@ -1618,39 +2274,103 @@ impl CleanerApp {
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 12.0;
                 let dc = if free < limit { WARN } else { MUTED };
-                if tile(ui, Glyph::Disk, "Startup disk", format!("Available: {}", human(free)), dc, Some("Free Up")) {
+                if tile(
+                    ui,
+                    Glyph::Disk,
+                    "Startup disk",
+                    format!("Available: {}", human(free)),
+                    dc,
+                    Some("Free Up"),
+                ) {
                     go = Some((Page::Cleanup, 0));
                 }
-                if tile(ui, Glyph::Grid, "Memory", format!("Used: {:.0}%", mem * 100.0), if mem > MEMORY_HIGH { WARN } else { MUTED }, Some("Optimize")) {
+                if tile(
+                    ui,
+                    Glyph::Grid,
+                    "Memory",
+                    format!("Used: {:.0}%", mem * 100.0),
+                    if mem > MEMORY_HIGH { WARN } else { MUTED },
+                    Some("Optimize"),
+                ) {
                     go = Some((Page::Performance, 3));
                 }
-                tile(ui, Glyph::Chart, "CPU", format!("Load: {:.0}% · up {} days", cpu * 100.0, uptime_days), if uptime_days > UPTIME_WARN_DAYS { WARN } else { MUTED }, None);
+                tile(
+                    ui,
+                    Glyph::Chart,
+                    "CPU",
+                    format!("Load: {:.0}% · up {} days", cpu * 100.0, uptime_days),
+                    if uptime_days > UPTIME_WARN_DAYS {
+                        WARN
+                    } else {
+                        MUTED
+                    },
+                    None,
+                );
             });
             ui.add_space(8.0);
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 12.0;
                 let (bt, bc) = match &self.battery {
                     Some((pct, st)) => (
-                        format!("{pct}% · {st}{}", battery_cond.as_deref().map(|c| format!(" · {c}")).unwrap_or_default()),
-                        if battery_bad { BAD } else if *pct < 20 && st == "On battery" { WARN } else { MUTED },
+                        format!(
+                            "{pct}% · {st}{}",
+                            battery_cond
+                                .as_deref()
+                                .map(|c| format!(" · {c}"))
+                                .unwrap_or_default()
+                        ),
+                        if battery_bad {
+                            BAD
+                        } else if *pct < 20 && st == "On battery" {
+                            WARN
+                        } else {
+                            MUTED
+                        },
                     ),
                     None => ("No battery (power adapter)".to_string(), MUTED),
                 };
                 tile(ui, Glyph::Bolt, "Battery", bt, bc, None);
                 let net = self.wifi.clone().unwrap_or_else(|| "Network".to_string());
-                tile(ui, Glyph::Cloud, &net, format!("↑ {}   ↓ {}", scan::rate(self.net_rate.0), scan::rate(self.net_rate.1)), MUTED, None);
+                tile(
+                    ui,
+                    Glyph::Cloud,
+                    &net,
+                    format!(
+                        "↑ {}   ↓ {}",
+                        scan::rate(self.net_rate.0),
+                        scan::rate(self.net_rate.1)
+                    ),
+                    MUTED,
+                    None,
+                );
                 let ext = if self.externals.is_empty() {
                     "No devices connected".to_string()
                 } else {
-                    self.externals.iter().map(|(n, f, _)| format!("{n}: {} free", human(*f))).collect::<Vec<_>>().join(" · ")
+                    self.externals
+                        .iter()
+                        .map(|(n, f, _)| format!("{n}: {} free", human(*f)))
+                        .collect::<Vec<_>>()
+                        .join(" · ")
                 };
-                tile(ui, Glyph::Download, "External drives", elide(&ext, 40), MUTED, None);
+                tile(
+                    ui,
+                    Glyph::Download,
+                    "External drives",
+                    elide(&ext, 40),
+                    MUTED,
+                    None,
+                );
             });
             ui.add_space(10.0);
             // today's recommendation: the most pressing item first
             let (title, text, button, target) = match issues.first() {
                 Some(i) => (i.1.clone(), i.2.clone(), i.3, i.4),
-                None => ("All good".to_string(), "Nothing needs your attention right now.".to_string(), "Smart Scan", (Page::Smart, 0)),
+                None => (
+                    "All good".to_string(),
+                    "Nothing needs your attention right now.".to_string(),
+                    "Smart Scan",
+                    (Page::Smart, 0),
+                ),
             };
             ui.label(RichText::new("Today's recommendation").size(17.0).strong());
             ui.horizontal(|ui| {
@@ -1678,28 +2398,55 @@ impl CleanerApp {
         let freed: u64 = self.history.iter().map(|h| h.1).sum();
         ui.horizontal(|ui| {
             ui.label(RichText::new(human(freed)).size(28.0).strong());
-            ui.label(RichText::new(format!("cleaned up in total · {}", plural(self.history.len(), "action"))).color(MUTED));
+            ui.label(
+                RichText::new(format!(
+                    "cleaned up in total · {}",
+                    plural(self.history.len(), "action")
+                ))
+                .color(MUTED),
+            );
         });
         ui.add_space(6.0);
         card(ui, |ui| {
             ui.set_width(ui.available_width());
             if self.history.is_empty() {
-                ui.label(RichText::new("Nothing cleaned yet. What you clean, remove or run shows up here.").color(MUTED));
+                ui.label(
+                    RichText::new(
+                        "Nothing cleaned yet. What you clean, remove or run shows up here.",
+                    )
+                    .color(MUTED),
+                );
             }
-            egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-                let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-                for (ts, bytes, what) in self.history.iter().take(200) {
-                    ui.horizontal(|ui| {
-                        let days = now.saturating_sub(*ts) / 86_400;
-                        let when = if days == 0 { "Today".to_string() } else if days == 1 { "Yesterday".to_string() } else { format!("{days} days ago") };
-                        ui.add_sized([90.0, 20.0], egui::Label::new(RichText::new(when).size(12.5).color(DIM)));
-                        ui.label(RichText::new(what).size(13.5));
-                        if *bytes > 0 {
-                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| ui.label(RichText::new(human(*bytes)).size(13.0).color(GOOD)));
-                        }
-                    });
-                }
-            });
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    for (ts, bytes, what) in self.history.iter().take(200) {
+                        ui.horizontal(|ui| {
+                            let days = now.saturating_sub(*ts) / 86_400;
+                            let when = if days == 0 {
+                                "Today".to_string()
+                            } else if days == 1 {
+                                "Yesterday".to_string()
+                            } else {
+                                format!("{days} days ago")
+                            };
+                            ui.add_sized(
+                                [90.0, 20.0],
+                                egui::Label::new(RichText::new(when).size(12.5).color(DIM)),
+                            );
+                            ui.label(RichText::new(what).size(13.5));
+                            if *bytes > 0 {
+                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                    ui.label(RichText::new(human(*bytes)).size(13.0).color(GOOD))
+                                });
+                            }
+                        });
+                    }
+                });
         });
     }
 }
@@ -1710,18 +2457,40 @@ fn agent_row(ui: &mut Ui, it: &mut scan::AgentItem) {
         ui.horizontal(|ui| {
             ui.checkbox(&mut it.selected, "");
             let (col, tag) = match it.verdict {
-                Verdict::Threat => (BAD, if it.category.is_empty() { "Threat" } else { it.category.as_str() }),
+                Verdict::Threat => (
+                    BAD,
+                    if it.category.is_empty() {
+                        "Threat"
+                    } else {
+                        it.category.as_str()
+                    },
+                ),
                 Verdict::Review => (WARN, "Review"),
                 Verdict::Ok => (GOOD, "OK"),
             };
             let (r, _) = ui.allocate_exact_size(Vec2::new(72.0, 22.0), Sense::hover());
             ui.painter().rect_filled(r, 11.0, alpha(col, 50));
-            ui.painter().text(r.center(), Align2::CENTER_CENTER, tag, FontId::proportional(12.0), col);
+            ui.painter().text(
+                r.center(),
+                Align2::CENTER_CENTER,
+                tag,
+                FontId::proportional(12.0),
+                col,
+            );
             ui.vertical(|ui| {
                 ui.label(RichText::new(&it.label).size(14.5).strong());
-                ui.label(RichText::new(format!("{} · {}", it.place, it.reason)).size(12.0).color(MUTED));
+                ui.label(
+                    RichText::new(format!("{} · {}", it.place, it.reason))
+                        .size(12.0)
+                        .color(MUTED),
+                );
                 if !it.program.is_empty() {
-                    ui.label(RichText::new(elide(&it.program, 90)).size(11.5).color(DIM).monospace());
+                    ui.label(
+                        RichText::new(elide(&it.program, 90))
+                            .size(11.5)
+                            .color(DIM)
+                            .monospace(),
+                    );
                 }
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -1747,10 +2516,16 @@ fn category_tag(ui: &mut Ui, c: &str, n: usize) {
         _ => MUTED,
     };
     let text = format!("{n} {c}");
-    let g = ui.painter().layout_no_wrap(text, FontId::proportional(13.5), col);
+    let g = ui
+        .painter()
+        .layout_no_wrap(text, FontId::proportional(13.5), col);
     let (r, _) = ui.allocate_exact_size(Vec2::new(g.size().x + 22.0, 24.0), Sense::hover());
     ui.painter().rect_filled(r, 12.0, alpha(col, 45));
-    ui.painter().galley(Pos2::new(r.left() + 11.0, r.center().y - g.size().y / 2.0), g, col);
+    ui.painter().galley(
+        Pos2::new(r.left() + 11.0, r.center().y - g.size().y / 2.0),
+        g,
+        col,
+    );
 }
 
 /// Column names above a list of `file_row`s (same widths, so they line up).
@@ -1761,28 +2536,59 @@ fn file_header(ui: &mut Ui) {
         ui.label(RichText::new("Name").size(11.5).color(DIM));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.add_space(70.0);
-            ui.add_sized([86.0, 16.0], egui::Label::new(RichText::new("Size").size(11.5).color(DIM)));
-            ui.add_sized([86.0, 16.0], egui::Label::new(RichText::new("Last opened").size(11.5).color(DIM)));
-            ui.add_sized([76.0, 16.0], egui::Label::new(RichText::new("Kind").size(11.5).color(DIM)));
+            ui.add_sized(
+                [86.0, 16.0],
+                egui::Label::new(RichText::new("Size").size(11.5).color(DIM)),
+            );
+            ui.add_sized(
+                [86.0, 16.0],
+                egui::Label::new(RichText::new("Last opened").size(11.5).color(DIM)),
+            );
+            ui.add_sized(
+                [76.0, 16.0],
+                egui::Label::new(RichText::new("Kind").size(11.5).color(DIM)),
+            );
         });
     });
     ui.separator();
 }
 
-fn file_row(ui: &mut Ui, selected: &mut bool, name: &str, path: &std::path::Path, size: u64, age_days: u64, kind: &str) {
+fn file_row(
+    ui: &mut Ui,
+    selected: &mut bool,
+    name: &str,
+    path: &std::path::Path,
+    size: u64,
+    age_days: u64,
+    kind: &str,
+) {
     ui.horizontal(|ui| {
         ui.set_height(22.0);
         ui.checkbox(selected, "");
-        ui.label(RichText::new(elide(name, 60)).size(13.0)).on_hover_text(short(path));
+        ui.label(RichText::new(elide(name, 60)).size(13.0))
+            .on_hover_text(short(path));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if ui.small_button("Reveal").clicked() {
                 reveal(path);
             }
             ui.add_space(16.0);
-            ui.add_sized([86.0, 18.0], egui::Label::new(RichText::new(human(size)).size(13.0)));
-            let col = if age_days > OLD_FILE_DAYS { WARN } else { MUTED };
-            ui.add_sized([86.0, 18.0], egui::Label::new(RichText::new(age_text(age_days)).size(12.5).color(col)));
-            ui.add_sized([76.0, 18.0], egui::Label::new(RichText::new(kind).size(12.5).color(MUTED)));
+            ui.add_sized(
+                [86.0, 18.0],
+                egui::Label::new(RichText::new(human(size)).size(13.0)),
+            );
+            let col = if age_days > OLD_FILE_DAYS {
+                WARN
+            } else {
+                MUTED
+            };
+            ui.add_sized(
+                [86.0, 18.0],
+                egui::Label::new(RichText::new(age_text(age_days)).size(12.5).color(col)),
+            );
+            ui.add_sized(
+                [76.0, 18.0],
+                egui::Label::new(RichText::new(kind).size(12.5).color(MUTED)),
+            );
         });
     });
 }
@@ -1799,7 +2605,9 @@ pub fn bubble_map(items: &[(usize, f64)], rect: Rect) -> Vec<(usize, Pos2, f32)>
     let mut placed: Vec<(usize, Pos2, f32)> = vec![];
     let c0 = rect.center();
     for &(idx, size) in items {
-        let r = ((size * scale / std::f64::consts::PI).sqrt() as f32).max(6.0).min(rect.height() * 0.45);
+        let r = ((size * scale / std::f64::consts::PI).sqrt() as f32)
+            .max(6.0)
+            .min(rect.height() * 0.45);
         if placed.is_empty() {
             placed.push((idx, c0, r));
             continue;
@@ -1810,8 +2618,15 @@ pub fn bubble_map(items: &[(usize, f64)], rect: Rect) -> Vec<(usize, Pos2, f32)>
         let mut d = 0.0f32;
         while d < rect.width() {
             let p = c0 + Vec2::angled(a) * d;
-            let inside = p.x - r >= rect.left() && p.x + r <= rect.right() && p.y - r >= rect.top() && p.y + r <= rect.bottom();
-            if inside && placed.iter().all(|(_, q, rq)| p.distance(*q) >= r + rq + 4.0) {
+            let inside = p.x - r >= rect.left()
+                && p.x + r <= rect.right()
+                && p.y - r >= rect.top()
+                && p.y + r <= rect.bottom();
+            if inside
+                && placed
+                    .iter()
+                    .all(|(_, q, rq)| p.distance(*q) >= r + rq + 4.0)
+            {
                 found = Some(p);
                 break;
             }
@@ -1838,10 +2653,19 @@ mod tests {
     fn size_groups() {
         assert_eq!(LARGE_FILE_BYTES, 50_000_001);
         assert!(!in_group(1, 50_000_000) && in_group(1, 50_000_001) && in_group(1, 500_000_000));
-        assert!(!in_group(2, 500_000_000) && in_group(2, 500_000_001) && in_group(2, 1_000_000_000));
+        assert!(
+            !in_group(2, 500_000_000) && in_group(2, 500_000_001) && in_group(2, 1_000_000_000)
+        );
         assert!(!in_group(3, 1_000_000_000) && in_group(3, 1_000_000_001));
         // every large file is in exactly one of the three groups
-        for s in [50_000_001u64, 500_000_000, 500_000_001, 1_000_000_000, 1_000_000_001, 9_000_000_000] {
+        for s in [
+            50_000_001u64,
+            500_000_000,
+            500_000_001,
+            1_000_000_000,
+            1_000_000_001,
+            9_000_000_000,
+        ] {
             assert_eq!((1..4).filter(|&i| in_group(i, s)).count(), 1, "size {s}");
         }
     }
@@ -1854,8 +2678,15 @@ mod tests {
         assert!(!age_matches(30, 30) && age_matches(30, 31));
         assert!(!age_matches(182, 182) && age_matches(182, 183));
         assert!(!age_matches(365, 365) && age_matches(365, 366));
-        assert_eq!((UNUSED_APP_DAYS, OLD_FILE_DAYS, OLD_DOWNLOAD_DAYS, FRESH_DUPLICATE_DAYS), (180, 365, 90, 90));
-        assert_eq!(TRASH_ALERT_BYTES, 2_000_000_000);
+        assert_eq!(
+            (
+                UNUSED_APP_DAYS,
+                OLD_FILE_DAYS,
+                OLD_DOWNLOAD_DAYS,
+                FRESH_DUPLICATE_DAYS
+            ),
+            (180, 365, 90, 90)
+        );
     }
 
     #[test]

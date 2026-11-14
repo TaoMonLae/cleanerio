@@ -1,11 +1,16 @@
 use crate::art::{self, Glyph, Outline};
-use crate::scan::{self, human, short, ActionReport, AgentItem, AppInfo, AppsSummary, BigFile, CloudFolder, DupGroup, Job, JunkGroup, Node, Task};
+use crate::scan::{
+    self, ActionReport, AgentItem, AppInfo, AppsSummary, BigFile, CloudFolder, DupGroup, Job,
+    JunkGroup, Node, Task, human, short,
+};
 use crate::ui_kit::*;
-use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
+use eframe::egui::{
+    self, Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2,
+};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use sysinfo::{Disks, System};
 
@@ -30,7 +35,16 @@ pub struct Intro {
 }
 
 impl Page {
-    pub const MAIN: [Page; 8] = [Page::Smart, Page::Cleanup, Page::Protection, Page::Performance, Page::Apps, Page::Clutter, Page::Space, Page::Cloud];
+    pub const MAIN: [Page; 8] = [
+        Page::Smart,
+        Page::Cleanup,
+        Page::Protection,
+        Page::Performance,
+        Page::Apps,
+        Page::Clutter,
+        Page::Space,
+        Page::Cloud,
+    ];
     pub const BOTTOM: [Page; 2] = [Page::Tools, Page::Activity];
 
     pub fn name(self) -> &'static str {
@@ -98,14 +112,49 @@ impl Page {
     pub fn bg(self) -> [Color32; 4] {
         let c = Color32::from_rgb;
         match self {
-            Page::Smart => [c(125, 35, 160), c(30, 12, 80), c(95, 30, 150), c(60, 20, 140)],
+            Page::Smart => [
+                c(125, 35, 160),
+                c(30, 12, 80),
+                c(95, 30, 150),
+                c(60, 20, 140),
+            ],
             Page::Cleanup => [c(85, 125, 45), c(18, 55, 25), c(55, 115, 55), c(22, 70, 35)],
-            Page::Protection => [c(145, 30, 135), c(135, 45, 120), c(105, 22, 70), c(85, 15, 45)],
-            Page::Performance => [c(190, 100, 45), c(110, 35, 20), c(170, 75, 35), c(140, 48, 25)],
-            Page::Apps => [c(22, 42, 105), c(75, 35, 160), c(40, 85, 175), c(40, 60, 165)],
-            Page::Clutter => [c(40, 100, 112), c(62, 135, 128), c(36, 98, 92), c(28, 78, 76)],
-            Page::Space => [c(75, 18, 175), c(24, 10, 66), c(62, 16, 150), c(52, 16, 135)],
-            Page::Cloud => [c(30, 85, 165), c(18, 42, 100), c(50, 115, 185), c(28, 65, 135)],
+            Page::Protection => [
+                c(145, 30, 135),
+                c(135, 45, 120),
+                c(105, 22, 70),
+                c(85, 15, 45),
+            ],
+            Page::Performance => [
+                c(190, 100, 45),
+                c(110, 35, 20),
+                c(170, 75, 35),
+                c(140, 48, 25),
+            ],
+            Page::Apps => [
+                c(22, 42, 105),
+                c(75, 35, 160),
+                c(40, 85, 175),
+                c(40, 60, 165),
+            ],
+            Page::Clutter => [
+                c(40, 100, 112),
+                c(62, 135, 128),
+                c(36, 98, 92),
+                c(28, 78, 76),
+            ],
+            Page::Space => [
+                c(75, 18, 175),
+                c(24, 10, 66),
+                c(62, 16, 150),
+                c(52, 16, 135),
+            ],
+            Page::Cloud => [
+                c(30, 85, 165),
+                c(18, 42, 100),
+                c(50, 115, 185),
+                c(28, 65, 135),
+            ],
             Page::Tools => [c(70, 55, 120), c(30, 26, 60), c(80, 55, 130), c(40, 32, 85)],
             Page::Activity => [c(30, 45, 95), c(15, 20, 48), c(42, 65, 120), c(25, 35, 80)],
         }
@@ -114,45 +163,131 @@ impl Page {
         match self {
             Page::Smart => Intro {
                 title: "Smart Scan",
-                text: if crate::linux::ON || crate::windows::ON { "A quick checkup that tidies, protects and speeds up your computer in one go." } else { "A quick checkup that tidies, protects and speeds up your Mac in one go." },
-                bullets: &[(Glyph::Bubble, "Junk Cleanup"), (Glyph::Shield, "Threat Check"), (Glyph::Bolt, "Speed Tune-up")],
+                text: if crate::linux::ON || crate::windows::ON {
+                    "A quick checkup that tidies, protects and speeds up your computer in one go."
+                } else {
+                    "A quick checkup that tidies, protects and speeds up your Mac in one go."
+                },
+                bullets: &[
+                    (Glyph::Bubble, "Junk Cleanup"),
+                    (Glyph::Shield, "Threat Check"),
+                    (Glyph::Bolt, "Speed Tune-up"),
+                ],
             },
             Page::Cleanup => Intro {
                 title: "Cleanup",
                 text: "Clear out caches, logs and leftovers to win back free space.",
-                bullets: if crate::linux::ON || crate::windows::ON { &[(Glyph::Trash, "Caches & Logs"), (Glyph::Download, "Old Installers"), (Glyph::Hammer, "Developer Junk"), (Glyph::Trash, "Trash")] } else { &[(Glyph::Trash, "System Junk"), (Glyph::Sparkles, "AI Clutter"), (Glyph::Mail, "Mail Attachments"), (Glyph::Trash, "Trash Bins")] },
+                bullets: if crate::linux::ON || crate::windows::ON {
+                    &[
+                        (Glyph::Trash, "Caches & Logs"),
+                        (Glyph::Download, "Old Installers"),
+                        (Glyph::Hammer, "Developer Junk"),
+                        (Glyph::Trash, "Trash"),
+                    ]
+                } else {
+                    &[
+                        (Glyph::Trash, "System Junk"),
+                        (Glyph::Sparkles, "AI Clutter"),
+                        (Glyph::Mail, "Mail Attachments"),
+                        (Glyph::Trash, "Trash Bins"),
+                    ]
+                },
             },
             Page::Protection => Intro {
                 title: "Protection",
-                text: if crate::linux::ON || crate::windows::ON { "Check what starts by itself, your browser extensions and running programs for anything suspicious." } else { "Check your Mac against a database of Mac threats: trojans, adware, spyware and crypto miners." },
-                bullets: if crate::scan::mac() { &[(Glyph::Bug, "Malware Removal"), (Glyph::Shield, "Privacy Check"), (Glyph::Sliders, "App Permissions")] } else { &[(Glyph::Bug, "Malware Removal"), (Glyph::Shield, "Suspicious Helpers"), (Glyph::Bolt, "Running Threats")] },
+                text: if crate::linux::ON || crate::windows::ON {
+                    "Check what starts by itself, your browser extensions and running programs for anything suspicious."
+                } else {
+                    "Check your Mac against a database of Mac threats: trojans, adware, spyware and crypto miners."
+                },
+                bullets: if crate::scan::mac() {
+                    &[
+                        (Glyph::Bug, "Malware Removal"),
+                        (Glyph::Shield, "Privacy Check"),
+                        (Glyph::Sliders, "App Permissions"),
+                    ]
+                } else {
+                    &[
+                        (Glyph::Bug, "Malware Removal"),
+                        (Glyph::Shield, "Suspicious Helpers"),
+                        (Glyph::Bolt, "Running Threats"),
+                    ]
+                },
             },
             Page::Performance => Intro {
                 title: "Performance",
-                text: if crate::linux::ON || crate::windows::ON { "Keep your computer quick with regular maintenance and a tidy startup." } else { "Keep your Mac quick with regular maintenance and a tidy startup." },
-                bullets: &[(Glyph::Wrench, "Maintenance Tasks"), (Glyph::Power, "Login Items"), (Glyph::Rocket, "Background Items")],
+                text: if crate::linux::ON || crate::windows::ON {
+                    "Keep your computer quick with regular maintenance and a tidy startup."
+                } else {
+                    "Keep your Mac quick with regular maintenance and a tidy startup."
+                },
+                bullets: &[
+                    (Glyph::Wrench, "Maintenance Tasks"),
+                    (Glyph::Power, "Login Items"),
+                    (Glyph::Rocket, "Background Items"),
+                ],
             },
             Page::Apps => Intro {
                 title: "Applications",
                 text: "See every app and how much room it takes, then remove it cleanly.",
-                bullets: if crate::scan::mac() { &[(Glyph::Grid, "Uninstaller"), (Glyph::Download, "Updater"), (Glyph::Leftovers, "Leftover Files")] } else { &[(Glyph::Grid, "Uninstaller"), (Glyph::Leftovers, "Leftover Files"), (Glyph::Sliders, "Reset Apps")] },
+                bullets: if crate::scan::mac() {
+                    &[
+                        (Glyph::Grid, "Uninstaller"),
+                        (Glyph::Download, "Updater"),
+                        (Glyph::Leftovers, "Leftover Files"),
+                    ]
+                } else {
+                    &[
+                        (Glyph::Grid, "Uninstaller"),
+                        (Glyph::Leftovers, "Leftover Files"),
+                        (Glyph::Sliders, "Reset Apps"),
+                    ]
+                },
             },
             Page::Clutter => Intro {
                 title: "My Files",
                 text: "Sort through big, old and duplicate files in a few clicks.",
-                bullets: &[(Glyph::Folder, "Large & Old Files"), (Glyph::Copy, "Duplicate Finder"), (Glyph::Lens, "Similar Images"), (Glyph::Download, "Downloads")],
+                bullets: &[
+                    (Glyph::Folder, "Large & Old Files"),
+                    (Glyph::Copy, "Duplicate Finder"),
+                    (Glyph::Lens, "Similar Images"),
+                    (Glyph::Download, "Downloads"),
+                ],
             },
             Page::Space => Intro {
                 title: "Space Map",
                 text: "See what's taking up the most room and tidy your storage fast.",
-                bullets: &[(Glyph::Disk, "Visual Storage Map"), (Glyph::Lens, "Hidden Space Found"), (Glyph::Folder, "Biggest Folders")],
+                bullets: &[
+                    (Glyph::Disk, "Visual Storage Map"),
+                    (Glyph::Lens, "Hidden Space Found"),
+                    (Glyph::Folder, "Biggest Folders"),
+                ],
             },
             Page::Cloud => Intro {
                 title: "Cloud Files",
-                text: if crate::linux::ON || crate::windows::ON { "See how much room your cloud folders take on this computer." } else { "See how much room your cloud folders take on this Mac and free it up." },
-                bullets: if crate::linux::ON || crate::windows::ON { &[(Glyph::Cloud, "OneDrive, Dropbox & more"), (Glyph::Folder, "Largest Synced Files")] } else { &[(Glyph::Cloud, "iCloud Drive"), (Glyph::Folder, "Other Cloud Folders"), (Glyph::Download, "Free Local Copies")] },
+                text: if crate::linux::ON || crate::windows::ON {
+                    "See how much room your cloud folders take on this computer."
+                } else {
+                    "See how much room your cloud folders take on this Mac and free it up."
+                },
+                bullets: if crate::linux::ON || crate::windows::ON {
+                    &[
+                        (Glyph::Cloud, "OneDrive, Dropbox & more"),
+                        (Glyph::Folder, "Largest Synced Files"),
+                    ]
+                } else {
+                    &[
+                        (Glyph::Cloud, "iCloud Drive"),
+                        (Glyph::Folder, "Other Cloud Folders"),
+                        (Glyph::Download, "Free Local Copies"),
+                    ]
+                },
             },
-            Page::Tools | Page::Activity => Intro { title: "", text: "", bullets: &[] },
+            Page::Tools | Page::Activity => Intro {
+                title: "",
+                text: "",
+                bullets: &[],
+            },
         }
     }
 }
@@ -172,10 +307,20 @@ pub struct ClutterResult {
 }
 
 pub enum Pending {
-    Trash { title: String, paths: Vec<(PathBuf, u64)> },
-    EmptyTrash { size: u64 },
-    Evict { paths: Vec<(PathBuf, u64)> },
-    Quit { pid: sysinfo::Pid, name: String },
+    Trash {
+        title: String,
+        paths: Vec<(PathBuf, u64)>,
+    },
+    EmptyTrash {
+        size: u64,
+    },
+    Evict {
+        paths: Vec<(PathBuf, u64)>,
+    },
+    Quit {
+        pid: sysinfo::Pid,
+        name: String,
+    },
 }
 
 pub struct CleanerApp {
@@ -230,6 +375,14 @@ pub struct CleanerApp {
     pub wifi_list: Option<Vec<String>>,
     /// A "forget this network" request waiting for the password window: (name, outcome).
     pub wifi_job: Option<Job<(String, Result<(), String>)>>,
+    pub settings: crate::settings::Settings,
+    pub settings_open: bool,
+    pub settings_tab: usize,
+    pub ignore_input: String,
+    pub clean_sel: usize,
+    pub clean_query: String,
+    pub clean_sort: usize,
+    pub ignore_pending: bool,
     pub perms: Option<Result<Vec<(String, String, bool)>, String>>,
     pub apps_tab: usize,
     pub updates: Option<Vec<crate::extra::AppUpdate>>,
@@ -265,8 +418,6 @@ pub struct CleanerApp {
     pub big: Option<Vec<BigFile>>,
     pub dups: Option<Vec<DupGroup>>,
     pub downloads: Option<Vec<BigFile>>,
-    pub big_min_mb: u64,
-    pub big_old_only: bool,
     pub big_size_group: usize,
     pub big_age_group: usize,
     pub big_kind: String,
@@ -301,7 +452,12 @@ impl CleanerApp {
             v.selection.bg_fill = TINT;
             v.selection.stroke = Stroke::new(1.0, ACCENT_DARK);
             v.hyperlink_color = ACCENT_DARK;
-            for w in [&mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
+            for w in [
+                &mut v.widgets.inactive,
+                &mut v.widgets.hovered,
+                &mut v.widgets.active,
+                &mut v.widgets.open,
+            ] {
                 w.weak_bg_fill = Color32::WHITE;
                 w.bg_fill = Color32::WHITE;
                 w.bg_stroke = Stroke::new(1.0, EDGE);
@@ -376,6 +532,17 @@ impl CleanerApp {
             privacy_job: None,
             wifi_list: None,
             wifi_job: None,
+            settings: crate::settings::Settings::load(),
+            settings_open: std::env::var("CLEANERIO_SETTINGS").is_ok(),
+            settings_tab: std::env::var("CLEANERIO_TAB")
+                .ok()
+                .and_then(|t| t.parse().ok())
+                .unwrap_or(0),
+            ignore_input: String::new(),
+            clean_sel: 0,
+            clean_query: String::new(),
+            clean_sort: 0,
+            ignore_pending: false,
             perms: None,
             apps_tab: 0,
             updates: None,
@@ -409,8 +576,6 @@ impl CleanerApp {
             big: None,
             dups: None,
             downloads: None,
-            big_min_mb: 50,
-            big_old_only: false,
             big_size_group: 0,
             big_age_group: 0,
             big_kind: "All".into(),
@@ -435,7 +600,11 @@ impl CleanerApp {
     }
 
     pub fn refresh_system(&mut self, force: bool) {
-        if !force && self.last_refresh.is_some_and(|t| t.elapsed() < Duration::from_secs(2)) {
+        if !force
+            && self
+                .last_refresh
+                .is_some_and(|t| t.elapsed() < Duration::from_secs(2))
+        {
             return;
         }
         self.last_refresh = Some(Instant::now());
@@ -448,11 +617,18 @@ impl CleanerApp {
             let d = disks
                 .iter()
                 .find(|d| d.mount_point() == std::path::Path::new("/System/Volumes/Data"))
-                .or_else(|| disks.iter().find(|d| d.mount_point() == std::path::Path::new("/")))
+                .or_else(|| {
+                    disks
+                        .iter()
+                        .find(|d| d.mount_point() == std::path::Path::new("/"))
+                })
                 // Windows ("C:\\") and Linux setups with their own home disk: the disk the home folder is on
                 .or_else(|| {
                     let home = scan::home();
-                    disks.iter().filter(|d| home.starts_with(d.mount_point())).max_by_key(|d| d.mount_point().as_os_str().len())
+                    disks
+                        .iter()
+                        .filter(|d| home.starts_with(d.mount_point()))
+                        .max_by_key(|d| d.mount_point().as_os_str().len())
                 });
             if let Some(d) = d {
                 self.disk_total = d.total_space().max(1);
@@ -464,10 +640,17 @@ impl CleanerApp {
                     if crate::linux::ON || crate::windows::ON {
                         d.is_removable() && d.total_space() > 0
                     } else {
-                        d.mount_point().starts_with("/Volumes") && (d.is_removable() || d.total_space() > 0)
+                        d.mount_point().starts_with("/Volumes")
+                            && (d.is_removable() || d.total_space() > 0)
                     }
                 })
-                .map(|d| (d.name().to_string_lossy().to_string(), d.available_space(), d.total_space()))
+                .map(|d| {
+                    (
+                        d.name().to_string_lossy().to_string(),
+                        d.available_space(),
+                        d.total_space(),
+                    )
+                })
                 .collect();
         }
         if let Some(n) = &mut self.net {
@@ -486,7 +669,11 @@ impl CleanerApp {
         }
         let waiting = crate::windows::ON && !crate::windows::status_ready();
         let every = if waiting { 1 } else { 30 };
-        if force || self.last_slow.is_none_or(|t| t.elapsed() > Duration::from_secs(every)) {
+        if force
+            || self
+                .last_slow
+                .is_none_or(|t| t.elapsed() > Duration::from_secs(every))
+        {
             self.last_slow = Some(Instant::now());
             self.battery = scan::battery();
             self.wifi = scan::wifi_name();
@@ -502,7 +689,11 @@ impl CleanerApp {
         if self.procs_job.as_ref().is_some_and(|j| j.failed()) {
             self.procs_job = None;
         }
-        if self.procs_job.is_some() || self.last_procs.is_some_and(|t| t.elapsed() < Duration::from_secs(3)) {
+        if self.procs_job.is_some()
+            || self
+                .last_procs
+                .is_some_and(|t| t.elapsed() < Duration::from_secs(3))
+        {
             return;
         }
         self.last_procs = Some(Instant::now());
@@ -540,6 +731,11 @@ impl CleanerApp {
                 }
             )* };
         }
+        let waiting = (
+            self.smart_job.is_some(),
+            self.junk_job.is_some(),
+            self.clutter_job.is_some(),
+        );
         drop_failed!(self; smart_job, junk_job, agents_job, login_job, task_job, apps_job, clutter_job, space_job, cloud_job, action_job);
         // a scan the person stopped: its half-finished result is not shown as if complete
         macro_rules! drop_stopped {
@@ -598,6 +794,12 @@ impl CleanerApp {
             self.apps_job = None;
             self.apps = Some(r);
         }
+        self.ignore_pending |= waiting
+            != (
+                self.smart_job.is_some(),
+                self.junk_job.is_some(),
+                self.clutter_job.is_some(),
+            );
         if let Some(r) = self.clutter_job.as_ref().and_then(|j| j.take()) {
             self.clutter_job = None;
             self.big = Some(r.big);
@@ -713,13 +915,24 @@ impl CleanerApp {
         let mut msg = if !r.message.is_empty() {
             r.message.clone()
         } else {
-            scan::words(&format!("Moved {} item(s) ({}) to the Trash · empty the Trash to free the space", r.removed.len(), human(r.freed)))
+            scan::words(&format!(
+                "Moved {} item(s) ({}) to the Trash · empty the Trash to free the space",
+                r.removed.len(),
+                human(r.freed)
+            ))
         };
         if !r.failed.is_empty() {
-            msg += &format!(" · {} couldn't be moved (they may need an administrator or be in use)", r.failed.len());
+            msg += &format!(
+                " · {} couldn't be moved (they may need an administrator or be in use)",
+                r.failed.len()
+            );
         }
         if !r.removed.is_empty() {
-            let what = if self.action_label.is_empty() { "Cleaned up".to_string() } else { self.action_label.clone() };
+            let what = if self.action_label.is_empty() {
+                "Cleaned up".to_string()
+            } else {
+                self.action_label.clone()
+            };
             scan::log_activity(&what, r.freed);
             self.history = scan::read_activity();
         }
@@ -736,8 +949,15 @@ impl CleanerApp {
 
     fn nav_item(&self, ui: &mut Ui, rect: Rect, page: Page, y: f32, row_h: f32) -> bool {
         let selected = self.page == page;
-        let r = Rect::from_min_size(Pos2::new(rect.left() + 10.0, y), Vec2::new(rect.width() - 20.0, row_h - 2.0));
-        let resp = ui.interact(r, ui.scope_id().with(("nav", page as usize)), Sense::click());
+        let r = Rect::from_min_size(
+            Pos2::new(rect.left() + 10.0, y),
+            Vec2::new(rect.width() - 20.0, row_h - 2.0),
+        );
+        let resp = ui.interact(
+            r,
+            ui.scope_id().with(("nav", page as usize)),
+            Sense::click(),
+        );
         let p = ui.painter();
         if selected {
             p.rect_filled(r, 10.0, TINT);
@@ -745,16 +965,37 @@ impl CleanerApp {
             p.rect_filled(r, 10.0, ink(10));
         }
         let col = if selected { ACCENT_DARK } else { BODY };
-        let ir = Rect::from_center_size(Pos2::new(r.left() + 22.0, r.center().y), Vec2::splat(20.0));
+        let ir =
+            Rect::from_center_size(Pos2::new(r.left() + 22.0, r.center().y), Vec2::splat(20.0));
         art::glyph(p, page.glyph(), ir, col);
-        p.text(Pos2::new(r.left() + 44.0, r.center().y), Align2::LEFT_CENTER, page.name(), FontId::proportional(14.5), if selected { ACCENT_DARK } else { TEXT });
+        p.text(
+            Pos2::new(r.left() + 44.0, r.center().y),
+            Align2::LEFT_CENTER,
+            page.name(),
+            FontId::proportional(14.5),
+            if selected { ACCENT_DARK } else { TEXT },
+        );
         let dot = match page {
-            Page::Cleanup => self.junk.as_ref().is_some_and(|j| j.iter().any(|g| !g.items.is_empty())),
-            Page::Protection => self.agents.as_ref().is_some_and(|a| a.iter().any(|i| i.verdict == scan::Verdict::Threat)),
+            Page::Cleanup => self
+                .junk
+                .as_ref()
+                .is_some_and(|j| j.iter().any(|g| !g.items.is_empty())),
+            Page::Protection => self
+                .agents
+                .as_ref()
+                .is_some_and(|a| a.iter().any(|i| i.verdict == scan::Verdict::Threat)),
             _ => false,
         };
         if dot {
-            p.circle_filled(Pos2::new(r.right() - 14.0, r.center().y), 4.0, if page == Page::Protection { BAD } else { ACCENT });
+            p.circle_filled(
+                Pos2::new(r.right() - 14.0, r.center().y),
+                4.0,
+                if page == Page::Protection {
+                    BAD
+                } else {
+                    ACCENT
+                },
+            );
         }
         resp.clicked()
     }
@@ -763,11 +1004,26 @@ impl CleanerApp {
         let rect = ui.max_rect();
         let p = ui.painter().clone();
         p.rect_filled(rect, 0.0, Color32::WHITE);
-        p.line_segment([Pos2::new(rect.right() - 0.5, rect.top()), Pos2::new(rect.right() - 0.5, rect.bottom())], Stroke::new(1.0, LINE));
+        p.line_segment(
+            [
+                Pos2::new(rect.right() - 0.5, rect.top()),
+                Pos2::new(rect.right() - 0.5, rect.bottom()),
+            ],
+            Stroke::new(1.0, LINE),
+        );
         // the app's mark and name, below the window buttons
-        let mark = Rect::from_min_size(Pos2::new(rect.left() + 20.0, rect.top() + 46.0), Vec2::splat(28.0));
+        let mark = Rect::from_min_size(
+            Pos2::new(rect.left() + 20.0, rect.top() + 46.0),
+            Vec2::splat(28.0),
+        );
         art::brand_mark(&p, mark);
-        p.text(Pos2::new(mark.right() + 10.0, mark.center().y + 1.0), Align2::LEFT_CENTER, "Cleanerio", FontId::proportional(19.0), TEXT);
+        p.text(
+            Pos2::new(mark.right() + 10.0, mark.center().y + 1.0),
+            Align2::LEFT_CENTER,
+            "Cleanerio",
+            FontId::proportional(19.0),
+            TEXT,
+        );
         let row_h = 42.0;
         let mut clicked = None;
         let mut y = rect.top() + 94.0;
@@ -777,6 +1033,34 @@ impl CleanerApp {
             }
             y += row_h;
         }
+        if rect.bottom() - 84.0 - row_h > y {
+            let r = Rect::from_min_size(
+                Pos2::new(rect.left() + 10.0, rect.bottom() - 84.0 - row_h),
+                Vec2::new(rect.width() - 20.0, row_h - 2.0),
+            );
+            let resp = ui.interact(r, ui.scope_id().with("nav_settings"), Sense::click());
+            if self.settings_open {
+                p.rect_filled(r, 10.0, TINT);
+            } else if resp.hovered() {
+                p.rect_filled(r, 10.0, ink(10));
+            }
+            art::glyph(
+                &p,
+                Glyph::Wrench,
+                Rect::from_center_size(Pos2::new(r.left() + 22.0, r.center().y), Vec2::splat(20.0)),
+                BODY,
+            );
+            p.text(
+                Pos2::new(r.left() + 44.0, r.center().y),
+                Align2::LEFT_CENTER,
+                "Settings",
+                FontId::proportional(14.5),
+                TEXT,
+            );
+            if resp.clicked() {
+                self.settings_open = true;
+            }
+        }
         // the startup disk, always in view
         if rect.bottom() - 84.0 > y {
             let used = self.disk_total.saturating_sub(self.disk_free);
@@ -784,15 +1068,43 @@ impl CleanerApp {
             let x = rect.left() + 20.0;
             let w = rect.width() - 40.0;
             let top = rect.bottom() - 76.0;
-            p.line_segment([Pos2::new(rect.left() + 12.0, top - 12.0), Pos2::new(rect.right() - 12.0, top - 12.0)], Stroke::new(1.0, LINE));
-            p.text(Pos2::new(x, top), Align2::LEFT_TOP, "Startup disk", FontId::proportional(13.0), TEXT);
-            p.text(Pos2::new(x + w, top), Align2::RIGHT_TOP, format!("{:.0}% used", frac * 100.0), FontId::proportional(13.0), MUTED);
+            p.line_segment(
+                [
+                    Pos2::new(rect.left() + 12.0, top - 12.0),
+                    Pos2::new(rect.right() - 12.0, top - 12.0),
+                ],
+                Stroke::new(1.0, LINE),
+            );
+            p.text(
+                Pos2::new(x, top),
+                Align2::LEFT_TOP,
+                "Startup disk",
+                FontId::proportional(13.0),
+                TEXT,
+            );
+            p.text(
+                Pos2::new(x + w, top),
+                Align2::RIGHT_TOP,
+                format!("{:.0}% used", frac * 100.0),
+                FontId::proportional(13.0),
+                MUTED,
+            );
             let track = Rect::from_min_size(Pos2::new(x, top + 24.0), Vec2::new(w, 6.0));
             p.rect_filled(track, 3.0, Color32::from_rgb(230, 232, 239));
             let mut fill = track;
             fill.set_width(track.width() * frac);
             p.rect_filled(fill, 3.0, ACCENT);
-            p.text(Pos2::new(x, top + 38.0), Align2::LEFT_TOP, format!("{} free of {}", human(self.disk_free), human(self.disk_total)), FontId::proportional(12.5), MUTED);
+            p.text(
+                Pos2::new(x, top + 38.0),
+                Align2::LEFT_TOP,
+                format!(
+                    "{} free of {}",
+                    human(self.disk_free),
+                    human(self.disk_total)
+                ),
+                FontId::proportional(12.5),
+                MUTED,
+            );
         }
         if let Some(p) = clicked {
             if p == Page::Activity {
@@ -813,21 +1125,52 @@ impl CleanerApp {
     /// The section's welcome screen: a tinted band with the title, a line of text and the
     /// button on the left and the section's 3D object on the right, then what the section
     /// covers in a plain row below. Returns true when the button was pressed.
-    pub fn intro_screen(&mut self, ui: &mut Ui, button: &str, extra: Option<&mut dyn FnMut(&mut Ui, &mut Self)>) -> bool {
+    pub fn intro_screen(
+        &mut self,
+        ui: &mut Ui,
+        button: &str,
+        extra: Option<&mut dyn FnMut(&mut Ui, &mut Self)>,
+    ) -> bool {
         let rect = ui.max_rect();
         let page = self.page;
         let info = page.intro();
         let p = ui.painter().clone();
-        let band = Rect::from_min_max(rect.min, Pos2::new(rect.right(), rect.top() + (rect.height() - 84.0).max(260.0).min(rect.height())));
+        let band = Rect::from_min_max(
+            rect.min,
+            Pos2::new(
+                rect.right(),
+                rect.top() + (rect.height() - 84.0).max(260.0).min(rect.height()),
+            ),
+        );
         p.rect_filled(band, 20.0, page.tint());
         let art_r = (band.height() * 0.27).min(band.width() * 0.15);
-        let art_c = Pos2::new(band.right() - band.width() * 0.23, band.center().y - art_r * 0.08);
-        art::hero(&p.with_clip_rect(band), page.outline(), page.glyph(), art_c, art_r, page.accent());
+        let art_c = Pos2::new(
+            band.right() - band.width() * 0.23,
+            band.center().y - art_r * 0.08,
+        );
+        art::hero(
+            &p.with_clip_rect(band),
+            page.outline(),
+            page.glyph(),
+            art_c,
+            art_r,
+            page.accent(),
+        );
 
         let x = band.left() + 40.0;
         let col_w = (band.width() * 0.50).min(480.0);
-        let title = p.layout(info.title.to_string(), FontId::proportional(44.0), TEXT, col_w);
-        let sub = p.layout(info.text.to_string(), FontId::proportional(16.5), BODY, col_w.min(430.0));
+        let title = p.layout(
+            info.title.to_string(),
+            FontId::proportional(44.0),
+            TEXT,
+            col_w,
+        );
+        let sub = p.layout(
+            info.text.to_string(),
+            FontId::proportional(16.5),
+            BODY,
+            col_w.min(430.0),
+        );
         let total = title.size().y + 12.0 + sub.size().y + 26.0 + 48.0;
         let mut y = band.center().y - total / 2.0;
         let th = title.size().y;
@@ -839,22 +1182,51 @@ impl CleanerApp {
         let brect = Rect::from_min_size(Pos2::new(x, y), Vec2::new(primary_width(button), 48.0));
         let go = primary_at(ui, brect, button);
         if let Some(extra) = extra {
-            let r = Rect::from_min_size(Pos2::new(brect.right() + 14.0, y + 2.0), Vec2::new(250.0, 44.0));
-            let mut child = ui.new_child(egui::UiBuilder::new().max_rect(r).layout(Layout::left_to_right(Align::Center)));
+            let r = Rect::from_min_size(
+                Pos2::new(brect.right() + 14.0, y + 2.0),
+                Vec2::new(250.0, 44.0),
+            );
+            let mut child = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(r)
+                    .layout(Layout::left_to_right(Align::Center)),
+            );
             extra(&mut child, self);
         }
 
         // what this section covers
         let top = band.bottom() + 16.0;
-        let panel = Rect::from_min_max(Pos2::new(rect.left(), top), Pos2::new(rect.right(), (top + 68.0).min(rect.bottom())));
+        let panel = Rect::from_min_max(
+            Pos2::new(rect.left(), top),
+            Pos2::new(rect.right(), (top + 68.0).min(rect.bottom())),
+        );
         if !info.bullets.is_empty() && panel.height() > 40.0 {
             p.rect_filled(panel, 14.0, Color32::WHITE);
-            p.rect_stroke(panel, 14.0, Stroke::new(1.0, LINE), egui::StrokeKind::Inside);
+            p.rect_stroke(
+                panel,
+                14.0,
+                Stroke::new(1.0, LINE),
+                egui::StrokeKind::Inside,
+            );
             let cw = panel.width() / info.bullets.len() as f32;
             for (i, (g, label)) in info.bullets.iter().enumerate() {
                 let cx = panel.left() + cw * i as f32 + 22.0;
-                art::glyph(&p, *g, Rect::from_center_size(Pos2::new(cx + 10.0, panel.center().y), Vec2::splat(20.0)), ACCENT);
-                p.text(Pos2::new(cx + 32.0, panel.center().y), Align2::LEFT_CENTER, *label, FontId::proportional(15.0), TEXT);
+                art::glyph(
+                    &p,
+                    *g,
+                    Rect::from_center_size(
+                        Pos2::new(cx + 10.0, panel.center().y),
+                        Vec2::splat(20.0),
+                    ),
+                    ACCENT,
+                );
+                p.text(
+                    Pos2::new(cx + 32.0, panel.center().y),
+                    Align2::LEFT_CENTER,
+                    *label,
+                    FontId::proportional(15.0),
+                    TEXT,
+                );
             }
         }
         go
@@ -867,13 +1239,36 @@ impl CleanerApp {
         let p = ui.painter().clone();
         let c = Pos2::new(rect.center().x, rect.top() + rect.height() * 0.42);
         let r = (rect.width() * 0.14).min(rect.height() * 0.2);
-        art::hero(&p, page.outline(), page.glyph(), c + Vec2::new(0.0, (t * 2.0).sin() * 6.0), r, page.accent());
+        art::hero(
+            &p,
+            page.outline(),
+            page.glyph(),
+            c + Vec2::new(0.0, (t * 2.0).sin() * 6.0),
+            r,
+            page.accent(),
+        );
         for i in 0..3 {
             let a = t * 2.2 + i as f32 * 2.1;
-            p.circle_filled(c + Vec2::angled(a) * r * 1.45, 5.0, alpha(page.accent(), 170));
+            p.circle_filled(
+                c + Vec2::angled(a) * r * 1.45,
+                5.0,
+                alpha(page.accent(), 170),
+            );
         }
-        p.text(Pos2::new(rect.center().x, rect.top() + 40.0), Align2::CENTER_TOP, title, FontId::proportional(36.0), TEXT);
-        p.text(Pos2::new(rect.center().x, c.y + r * 1.9), Align2::CENTER_CENTER, elide(status, 90), FontId::proportional(15.0), MUTED);
+        p.text(
+            Pos2::new(rect.center().x, rect.top() + 40.0),
+            Align2::CENTER_TOP,
+            title,
+            FontId::proportional(36.0),
+            TEXT,
+        );
+        p.text(
+            Pos2::new(rect.center().x, c.y + r * 1.9),
+            Align2::CENTER_CENTER,
+            elide(status, 90),
+            FontId::proportional(15.0),
+            MUTED,
+        );
         ui.ctx().request_repaint();
         round_button(ui, "Stop", page.accent())
     }
@@ -885,11 +1280,29 @@ impl CleanerApp {
         ui.horizontal(|ui| {
             let total = 3.0 * 120.0 + 2.0 * 40.0;
             ui.add_space(((ui.available_width() - total) / 2.0).max(0.0));
-            ring(ui, disk, "Storage used", &format!("{:.0}%", disk * 100.0), Color32::from_rgb(180, 140, 255));
+            ring(
+                ui,
+                disk,
+                "Storage used",
+                &format!("{:.0}%", disk * 100.0),
+                Color32::from_rgb(180, 140, 255),
+            );
             ui.add_space(40.0);
-            ring(ui, mem, "Memory", &format!("{:.0}%", mem * 100.0), Color32::from_rgb(255, 170, 80));
+            ring(
+                ui,
+                mem,
+                "Memory",
+                &format!("{:.0}%", mem * 100.0),
+                Color32::from_rgb(255, 170, 80),
+            );
             ui.add_space(40.0);
-            ring(ui, self.cpu / 100.0, "Processor", &format!("{:.0}%", self.cpu), Color32::from_rgb(110, 220, 160));
+            ring(
+                ui,
+                self.cpu / 100.0,
+                "Processor",
+                &format!("{:.0}%", self.cpu),
+                Color32::from_rgb(110, 220, 160),
+            );
         });
     }
 
@@ -984,7 +1397,10 @@ impl CleanerApp {
             return;
         }
         let home = scan::home();
-        if let Some(t) = std::env::var("CLEANERIO_TAB").ok().and_then(|t| t.parse::<usize>().ok()) {
+        if let Some(t) = std::env::var("CLEANERIO_TAB")
+            .ok()
+            .and_then(|t| t.parse::<usize>().ok())
+        {
             self.clutter_tab = t;
             self.prot_tab = t;
             self.apps_tab = t;
@@ -1015,12 +1431,19 @@ impl CleanerApp {
             let downloads = scan::scan_downloads(p);
             p.stage(3);
             let similar = crate::extra::similar_images(scan::clutter_roots(), p);
-            ClutterResult { big, dups, downloads, similar }
+            ClutterResult {
+                big,
+                dups,
+                downloads,
+                similar,
+            }
         }));
     }
 
     fn handle_screenshot(&mut self, ctx: &egui::Context) {
-        let Some(path) = self.shot.clone() else { return };
+        let Some(path) = self.shot.clone() else {
+            return;
+        };
         ctx.request_repaint();
         ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaintWhileHidden);
         if self.shot_done.load(Ordering::SeqCst) {
@@ -1028,7 +1451,8 @@ impl CleanerApp {
             return;
         }
         // wait for test scans to finish before taking the picture
-        let waiting = std::env::var("CLEANERIO_AUTOSCAN").is_ok() && self.busy() && self.frames < 1500;
+        let waiting =
+            std::env::var("CLEANERIO_AUTOSCAN").is_ok() && self.busy() && self.frames < 1500;
         if self.frames >= 120 && !self.shot_requested && !waiting {
             self.shot_requested = true;
             let done = self.shot_done.clone();
@@ -1060,6 +1484,9 @@ impl eframe::App for CleanerApp {
         let ctx = ui.ctx().clone();
         self.frames += 1;
         self.poll();
+        if std::mem::take(&mut self.ignore_pending) {
+            self.apply_ignore();
+        }
         self.refresh_system(false);
         if self.busy() {
             ctx.request_repaint_after(Duration::from_millis(100));
@@ -1080,8 +1507,15 @@ impl eframe::App for CleanerApp {
 
         egui::CentralPanel::no_frame().show(ui, |ui| {
             let rect = ui.max_rect();
-            let inner = Rect::from_min_max(Pos2::new(rect.left() + 28.0, rect.top() + 40.0), Pos2::new(rect.right() - 28.0, rect.bottom() - 18.0));
-            let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner).layout(Layout::top_down(Align::Min)));
+            let inner = Rect::from_min_max(
+                Pos2::new(rect.left() + 28.0, rect.top() + 40.0),
+                Pos2::new(rect.right() - 28.0, rect.bottom() - 18.0),
+            );
+            let mut child = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(inner)
+                    .layout(Layout::top_down(Align::Min)),
+            );
             let ui = &mut child;
             match self.page {
                 Page::Smart => self.page_smart(ui),
@@ -1096,17 +1530,37 @@ impl eframe::App for CleanerApp {
                 Page::Activity => self.page_activity(ui),
             }
             if let Some(j) = &self.action_job {
-                let r = Rect::from_center_size(Pos2::new(rect.center().x, rect.bottom() - 30.0), Vec2::new(rect.width() * 0.6, 32.0));
+                let r = Rect::from_center_size(
+                    Pos2::new(rect.center().x, rect.bottom() - 30.0),
+                    Vec2::new(rect.width() * 0.6, 32.0),
+                );
                 ui.painter().rect_filled(r, 16.0, alpha(TEXT, 230));
-                ui.painter().text(r.center(), Align2::CENTER_CENTER, elide(&j.status(), 80), FontId::proportional(12.5), Color32::WHITE);
+                ui.painter().text(
+                    r.center(),
+                    Align2::CENTER_CENTER,
+                    elide(&j.status(), 80),
+                    FontId::proportional(12.5),
+                    Color32::WHITE,
+                );
             }
             if let Some((msg, t)) = &self.toast {
                 if t.elapsed() < Duration::from_secs(6) {
-                    let galley = ui.painter().layout_no_wrap(msg.clone(), FontId::proportional(13.0), Color32::WHITE);
+                    let galley = ui.painter().layout_no_wrap(
+                        msg.clone(),
+                        FontId::proportional(13.0),
+                        Color32::WHITE,
+                    );
                     let w = galley.size().x + 32.0;
-                    let r = Rect::from_center_size(Pos2::new(rect.center().x, rect.bottom() - 30.0), Vec2::new(w, 32.0));
+                    let r = Rect::from_center_size(
+                        Pos2::new(rect.center().x, rect.bottom() - 30.0),
+                        Vec2::new(w, 32.0),
+                    );
                     ui.painter().rect_filled(r, 16.0, TEXT);
-                    ui.painter().galley(Pos2::new(r.left() + 16.0, r.center().y - galley.size().y / 2.0), galley, Color32::WHITE);
+                    ui.painter().galley(
+                        Pos2::new(r.left() + 16.0, r.center().y - galley.size().y / 2.0),
+                        galley,
+                        Color32::WHITE,
+                    );
                     ctx.request_repaint_after(Duration::from_millis(500));
                 } else {
                     self.toast = None;
@@ -1118,6 +1572,7 @@ impl eframe::App for CleanerApp {
             self.screen_cleaning_overlay(ui);
             ctx.request_repaint();
         }
+        self.settings_window(&ctx);
         self.confirm_dialog(&ctx);
         self.autoscan_for_tests();
         self.handle_screenshot(&ctx);
@@ -1128,7 +1583,8 @@ impl eframe::App for CleanerApp {
 /// Returns true when something under this folder changed.
 fn prune(n: &mut Node, gone: &HashSet<PathBuf>) -> bool {
     let before = n.children.len();
-    n.children.retain(|c| !gone.contains(&c.path) || c.path == n.path);
+    n.children
+        .retain(|c| !gone.contains(&c.path) || c.path == n.path);
     let mut changed = n.children.len() != before;
     for c in n.children.iter_mut() {
         if c.is_dir && prune(c, gone) {
@@ -1148,18 +1604,40 @@ mod tests {
     use super::*;
 
     fn leaf(path: &str, size: u64) -> Node {
-        Node { name: path.into(), path: path.into(), size, is_dir: false, children: vec![], items: 1 }
+        Node {
+            name: path.into(),
+            path: path.into(),
+            size,
+            is_dir: false,
+            children: vec![],
+            items: 1,
+        }
     }
     fn dir(path: &str, children: Vec<Node>) -> Node {
         let size = children.iter().map(|c| c.size).sum();
         let items = children.iter().map(|c| c.items).sum::<u64>() + 1;
-        Node { name: path.into(), path: path.into(), size, is_dir: true, children, items }
+        Node {
+            name: path.into(),
+            path: path.into(),
+            size,
+            is_dir: true,
+            children,
+            items,
+        }
     }
 
     #[test]
     fn prune_fixes_sizes_and_order() {
-        let mut root = dir("/r", vec![dir("/r/a", vec![leaf("/r/a/big", 90), leaf("/r/a/small", 5)]), dir("/r/b", vec![leaf("/r/b/only", 40)])]);
-        let gone: HashSet<PathBuf> = [PathBuf::from("/r/a/big"), PathBuf::from("/r/b/only")].into_iter().collect();
+        let mut root = dir(
+            "/r",
+            vec![
+                dir("/r/a", vec![leaf("/r/a/big", 90), leaf("/r/a/small", 5)]),
+                dir("/r/b", vec![leaf("/r/b/only", 40)]),
+            ],
+        );
+        let gone: HashSet<PathBuf> = [PathBuf::from("/r/a/big"), PathBuf::from("/r/b/only")]
+            .into_iter()
+            .collect();
         assert!(prune(&mut root, &gone));
         assert_eq!(root.size, 5);
         assert_eq!(root.children[0].path, PathBuf::from("/r/a")); // biggest first again

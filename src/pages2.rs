@@ -2,20 +2,15 @@
 //! permissions, Wi-Fi networks, app updates, leftovers of deleted apps, browser tabs, the
 //! duplicate finder shortcut and screen cleaning mode.
 
-use crate::app::{elide, reveal, CleanerApp, Page, Pending};
+use crate::app::{CleanerApp, Page, Pending, elide, reveal};
 use crate::art::Glyph;
 use crate::extra;
 use crate::pages::glyph_tile;
-use crate::scan::{human, short, Job};
+use crate::scan::{Job, human, short};
 use crate::ui_kit::*;
 use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Pos2, RichText, Sense, Ui, Vec2};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-
-fn empty_note(ui: &mut Ui, text: &str) {
-    ui.add_space(30.0);
-    ui.vertical_centered(|ui| ui.label(RichText::new(text).size(16.0).color(MUTED)));
-}
 
 impl CleanerApp {
     // ------------------------------------------------------------------ my files: similar pictures
@@ -25,8 +20,23 @@ impl CleanerApp {
         let groups = self.similar.get_or_insert_with(Vec::new);
         let mut auto = false;
         ui.horizontal(|ui| {
-            let extra_size: u64 = groups.iter().map(|g| g.files.iter().skip(1).map(|f| f.size).sum::<u64>()).sum();
-            ui.label(RichText::new(format!("{} of look-alike pictures · {} in the extra ones", if groups.len() == 1 { "1 group".to_string() } else { format!("{} groups", groups.len()) }, human(extra_size))).size(16.0).strong());
+            let extra_size: u64 = groups
+                .iter()
+                .map(|g| g.files.iter().skip(1).map(|f| f.size).sum::<u64>())
+                .sum();
+            ui.label(
+                RichText::new(format!(
+                    "{} of look-alike pictures · {} in the extra ones",
+                    if groups.len() == 1 {
+                        "1 group".to_string()
+                    } else {
+                        format!("{} groups", groups.len())
+                    },
+                    human(extra_size)
+                ))
+                .size(16.0)
+                .strong(),
+            );
             if !groups.is_empty() && ghost(ui, "Keep the biggest, select the rest").clicked() {
                 auto = true;
             }
@@ -72,7 +82,11 @@ impl CleanerApp {
             .iter()
             .flat_map(|g| {
                 let all = g.files.iter().all(|f| f.selected);
-                g.files.iter().skip(if all { 1 } else { 0 }).filter(|f| f.selected).map(|f| (f.path.clone(), f.size))
+                g.files
+                    .iter()
+                    .skip(if all { 1 } else { 0 })
+                    .filter(|f| f.selected)
+                    .map(|f| (f.path.clone(), f.size))
             })
             .collect()
     }
@@ -158,14 +172,30 @@ impl CleanerApp {
         if self.wifi_job.is_some() {
             ui.ctx().request_repaint_after(Duration::from_millis(200));
         }
-        let chosen: Vec<extra::PrivacyItem> = self.privacy.iter().flatten().filter(|i| i.selected).cloned().collect();
+        let chosen: Vec<extra::PrivacyItem> = self
+            .privacy
+            .iter()
+            .flatten()
+            .filter(|i| i.selected)
+            .cloned()
+            .collect();
         if !chosen.is_empty() && !busy && round_button(ui, "Remove", accent) {
-            let open: Vec<&str> = chosen.iter().map(|i| i.browser).filter(|b| extra::browser_running(b)).collect();
+            let open: Vec<&str> = chosen
+                .iter()
+                .map(|i| i.browser)
+                .filter(|b| extra::browser_running(b))
+                .collect();
             if let Some(b) = open.first() {
                 self.toast(format!("Quit {b} first, then try again."));
             } else {
-                let paths: Vec<(PathBuf, u64)> = chosen.iter().flat_map(|i| i.paths.iter().map(|p| (p.clone(), 0))).collect();
-                self.pending = Some(Pending::Trash { title: format!("Remove {} privacy items?", chosen.len()), paths });
+                let paths: Vec<(PathBuf, u64)> = chosen
+                    .iter()
+                    .flat_map(|i| i.paths.iter().map(|p| (p.clone(), 0)))
+                    .collect();
+                self.pending = Some(Pending::Trash {
+                    title: format!("Remove {} privacy items?", chosen.len()),
+                    paths,
+                });
             }
         }
     }
@@ -177,7 +207,10 @@ impl CleanerApp {
         if self.perms.is_none() {
             self.perms = Some(extra::granted_permissions());
         }
-        ui.label(RichText::new("Which apps may use your camera, microphone, screen, files and more.").color(MUTED));
+        ui.label(
+            RichText::new("Which apps may use your camera, microphone, screen, files and more.")
+                .color(MUTED),
+        );
         ui.add_space(6.0);
         let mut reset: Option<(String, String)> = None;
         egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
@@ -259,38 +292,63 @@ impl CleanerApp {
         };
         let mut again = false;
         ui.horizontal(|ui| {
-            ui.label(RichText::new(if list.is_empty() { "All your apps are up to date.".to_string() } else { format!("{} can be updated", list.len()) }).size(18.0).strong());
+            ui.label(
+                RichText::new(if list.is_empty() {
+                    "All your apps are up to date.".to_string()
+                } else {
+                    format!("{} can be updated", list.len())
+                })
+                .size(18.0)
+                .strong(),
+            );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ghost(ui, "Check again").clicked() {
                     again = true;
                 }
             });
         });
-        ui.label(RichText::new("Only apps from the App Store or with their own update feed can be checked.").size(12.5).color(MUTED));
+        ui.label(
+            RichText::new(
+                "Only apps from the App Store or with their own update feed can be checked.",
+            )
+            .size(12.5)
+            .color(MUTED),
+        );
         ui.add_space(6.0);
-        egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-            for u in list {
-                card(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        glyph_tile(ui, Glyph::Download, accent, 32.0);
-                        ui.vertical(|ui| {
-                            ui.label(RichText::new(&u.name).size(15.0).strong());
-                            ui.label(RichText::new(format!("{} → {} · {}", u.current, u.latest, u.source)).size(12.5).color(MUTED));
-                        });
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if extra::safe_link(&u.link) && pill(ui, "Get update", accent).clicked() {
-                                let _ = std::process::Command::new("open").arg(&u.link).spawn();
-                            }
-                            if ghost(ui, "Open app").clicked() {
-                                let _ = std::process::Command::new("open").arg(&u.path).spawn();
-                            }
+        egui::ScrollArea::vertical()
+            .auto_shrink([false; 2])
+            .show(ui, |ui| {
+                for u in list {
+                    card(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.horizontal(|ui| {
+                            glyph_tile(ui, Glyph::Download, accent, 32.0);
+                            ui.vertical(|ui| {
+                                ui.label(RichText::new(&u.name).size(15.0).strong());
+                                ui.label(
+                                    RichText::new(format!(
+                                        "{} → {} · {}",
+                                        u.current, u.latest, u.source
+                                    ))
+                                    .size(12.5)
+                                    .color(MUTED),
+                                );
+                            });
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if extra::safe_link(&u.link)
+                                    && pill(ui, "Get update", accent).clicked()
+                                {
+                                    let _ = std::process::Command::new("open").arg(&u.link).spawn();
+                                }
+                                if ghost(ui, "Open app").clicked() {
+                                    let _ = std::process::Command::new("open").arg(&u.path).spawn();
+                                }
+                            });
                         });
                     });
-                });
-                ui.add_space(6.0);
-            }
-        });
+                    ui.add_space(6.0);
+                }
+            });
         if again {
             self.updates_job = Some(Job::spawn(extra::app_updates));
         }
@@ -313,34 +371,71 @@ impl CleanerApp {
         }
         let busy = self.action_job.is_some();
         let list = self.orphans.as_mut().unwrap();
-        let total: u64 = list.iter().map(|e| e.1.iter().map(|x| x.1).sum::<u64>()).sum();
-        ui.label(RichText::new(format!("{} from {} apps that are no longer on this Mac", human(total), list.len())).size(18.0).strong());
+        let total: u64 = list
+            .iter()
+            .map(|e| e.1.iter().map(|x| x.1).sum::<u64>())
+            .sum();
+        ui.label(
+            RichText::new(format!(
+                "{} from {} apps that are no longer on this Mac",
+                human(total),
+                list.len()
+            ))
+            .size(18.0)
+            .strong(),
+        );
         ui.label(RichText::new("Settings and caches named after apps that Spotlight can't find anywhere. Look before removing.").size(12.5).color(MUTED));
         ui.add_space(6.0);
         let h = ui.available_height() - 80.0;
-        egui::ScrollArea::vertical().max_height(h).auto_shrink([false; 2]).show(ui, |ui| {
-            if list.is_empty() {
-                ui.label(RichText::new("No leftovers found.").color(MUTED));
-            }
-            for (id, paths, sel) in list.iter_mut() {
-                ui.horizontal(|ui| {
-                    ui.checkbox(sel, "");
-                    ui.label(RichText::new(id.as_str()).size(14.0)).on_hover_text(paths.iter().map(|p| short(&p.0)).collect::<Vec<_>>().join("\n"));
-                    ui.label(RichText::new(format!("{} places", paths.len())).size(12.0).color(DIM));
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.small_button("Reveal").clicked() {
-                            if let Some(p) = paths.first() {
-                                reveal(&p.0);
+        egui::ScrollArea::vertical()
+            .max_height(h)
+            .auto_shrink([false; 2])
+            .show(ui, |ui| {
+                if list.is_empty() {
+                    ui.label(RichText::new("No leftovers found.").color(MUTED));
+                }
+                for (id, paths, sel) in list.iter_mut() {
+                    ui.horizontal(|ui| {
+                        ui.checkbox(sel, "");
+                        ui.label(RichText::new(id.as_str()).size(14.0))
+                            .on_hover_text(
+                                paths
+                                    .iter()
+                                    .map(|p| short(&p.0))
+                                    .collect::<Vec<_>>()
+                                    .join("\n"),
+                            );
+                        ui.label(
+                            RichText::new(format!("{} places", paths.len()))
+                                .size(12.0)
+                                .color(DIM),
+                        );
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if ui.small_button("Reveal").clicked() {
+                                if let Some(p) = paths.first() {
+                                    reveal(&p.0);
+                                }
                             }
-                        }
-                        ui.label(RichText::new(human(paths.iter().map(|x| x.1).sum())).color(MUTED));
+                            ui.label(
+                                RichText::new(human(paths.iter().map(|x| x.1).sum())).color(MUTED),
+                            );
+                        });
                     });
-                });
-            }
-        });
-        let paths: Vec<(PathBuf, u64)> = list.iter().filter(|e| e.2).flat_map(|e| e.1.clone()).collect();
+                }
+            });
+        let paths: Vec<(PathBuf, u64)> = list
+            .iter()
+            .filter(|e| e.2)
+            .flat_map(|e| e.1.clone())
+            .collect();
         if !paths.is_empty() && !busy && round_button(ui, "Remove", accent) {
-            self.pending = Some(Pending::Trash { title: format!("Remove leftovers ({})?", human(paths.iter().map(|p| p.1).sum())), paths });
+            self.pending = Some(Pending::Trash {
+                title: format!(
+                    "Remove leftovers ({})?",
+                    human(paths.iter().map(|p| p.1).sum())
+                ),
+                paths,
+            });
         }
     }
 
@@ -355,13 +450,24 @@ impl CleanerApp {
         if let Some(r) = &mut self.tabs_list {
             match r {
                 Err(e) => {
-                    ui.label(RichText::new(format!("Couldn't read the tabs: {}", elide(e, 120))).color(WARN));
+                    ui.label(
+                        RichText::new(format!("Couldn't read the tabs: {}", elide(e, 120)))
+                            .color(WARN),
+                    );
                     load = ghost(ui, "Try again").clicked();
                 }
                 Ok(tabs) => {
                     let dups = tabs.iter().filter(|t| t.duplicate).count();
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("{} open tabs · {} duplicates", tabs.len(), dups)).size(17.0).strong());
+                        ui.label(
+                            RichText::new(format!(
+                                "{} open tabs · {} duplicates",
+                                tabs.len(),
+                                dups
+                            ))
+                            .size(17.0)
+                            .strong(),
+                        );
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if ghost(ui, "Refresh").clicked() {
                                 load = true;
@@ -369,22 +475,36 @@ impl CleanerApp {
                         });
                     });
                     let h = ui.available_height() - 80.0;
-                    egui::ScrollArea::vertical().max_height(h).auto_shrink([false; 2]).show(ui, |ui| {
-                        if tabs.is_empty() {
-                            ui.label(RichText::new("No Safari or Chrome windows are open.").color(MUTED));
-                        }
-                        for t in tabs.iter_mut() {
-                            ui.horizontal(|ui| {
-                                ui.checkbox(&mut t.selected, "");
-                                ui.label(RichText::new(&t.browser).size(12.0).color(DIM));
-                                ui.label(RichText::new(elide(if t.title.is_empty() { &t.url } else { &t.title }, 70)).size(13.5)).on_hover_text(&t.url);
-                                if t.duplicate {
-                                    ui.label(RichText::new("duplicate").size(12.0).color(WARN));
-                                }
-                            });
-                        }
-                    });
-                    let chosen: Vec<extra::Tab> = tabs.iter().filter(|t| t.selected).cloned().collect();
+                    egui::ScrollArea::vertical()
+                        .max_height(h)
+                        .auto_shrink([false; 2])
+                        .show(ui, |ui| {
+                            if tabs.is_empty() {
+                                ui.label(
+                                    RichText::new("No Safari or Chrome windows are open.")
+                                        .color(MUTED),
+                                );
+                            }
+                            for t in tabs.iter_mut() {
+                                ui.horizontal(|ui| {
+                                    ui.checkbox(&mut t.selected, "");
+                                    ui.label(RichText::new(&t.browser).size(12.0).color(DIM));
+                                    ui.label(
+                                        RichText::new(elide(
+                                            if t.title.is_empty() { &t.url } else { &t.title },
+                                            70,
+                                        ))
+                                        .size(13.5),
+                                    )
+                                    .on_hover_text(&t.url);
+                                    if t.duplicate {
+                                        ui.label(RichText::new("duplicate").size(12.0).color(WARN));
+                                    }
+                                });
+                            }
+                        });
+                    let chosen: Vec<extra::Tab> =
+                        tabs.iter().filter(|t| t.selected).cloned().collect();
                     if !chosen.is_empty() && round_button(ui, "Close tabs", accent) {
                         close = Some(chosen);
                     }
@@ -419,12 +539,15 @@ impl CleanerApp {
             ui.label("Look in");
             let mut opts = vec![crate::scan::home()];
             opts.extend(crate::scan::clutter_roots());
-            egui::ComboBox::from_id_salt("dup_root").width(220.0).selected_text(crate::scan::file_name(&self.clutter_root)).show_ui(ui, |ui| {
-                for o in opts {
-                    let l = crate::scan::file_name(&o);
-                    ui.selectable_value(&mut self.clutter_root, o, l);
-                }
-            });
+            egui::ComboBox::from_id_salt("dup_root")
+                .width(220.0)
+                .selected_text(crate::scan::file_name(&self.clutter_root))
+                .show_ui(ui, |ui| {
+                    for o in opts {
+                        let l = crate::scan::file_name(&o);
+                        ui.selectable_value(&mut self.clutter_root, o, l);
+                    }
+                });
         });
         ui.add_space(8.0);
         if pill(ui, "Find duplicates", accent).clicked() {
@@ -440,21 +563,33 @@ impl CleanerApp {
         ui.add_space(8.0);
         if pill(ui, "Start Screen Cleaning", accent).clicked() {
             self.screen_clean = Some((Instant::now(), 0));
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
         }
     }
 
     /// Draws screen cleaning mode over everything. Returns true while it is on.
     pub fn screen_cleaning_overlay(&mut self, ui: &mut Ui) -> bool {
-        let Some((start, clicks)) = self.screen_clean else { return false };
+        let Some((start, clicks)) = self.screen_clean else {
+            return false;
+        };
         let ctx = ui.ctx().clone();
         let r = ctx.content_rect();
-        let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("screen_clean")));
+        let p = ctx.layer_painter(egui::LayerId::new(
+            egui::Order::Foreground,
+            egui::Id::unique("screen_clean"),
+        ));
         p.rect_filled(r, 0.0, Color32::BLACK);
         if start.elapsed().as_secs() < 4 {
-            p.text(r.center(), Align2::CENTER_CENTER, "Wipe your screen. Click three times or press Esc to finish.", FontId::proportional(18.0), Color32::from_gray(90));
+            p.text(
+                r.center(),
+                Align2::CENTER_CENTER,
+                "Wipe your screen. Click three times or press Esc to finish.",
+                FontId::proportional(18.0),
+                Color32::from_gray(90),
+            );
         }
-        let resp = ui.interact(r, egui::Id::new("screen_clean_click"), Sense::click());
+        let resp = ui.interact(r, egui::Id::unique("screen_clean_click"), Sense::click());
         let mut n = clicks;
         if resp.clicked() {
             n += 1;
