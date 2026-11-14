@@ -1,9 +1,14 @@
 name: Build
 
-# Builds and tests Cleanerio on Mac, Linux and Windows for every push and pull request,
-# and keeps the Windows and Linux programs as downloads on the run's page.
+# For every push and pull request: builds and tests Cleanerio on Mac, Linux and Windows, makes
+# the Linux and Windows packages, and keeps them as downloads on the run's page.
+# For a version tag (v0.3.0 and the like): also attaches those packages to the release with
+# that tag. The Mac disk image is not made here, because signing it needs the Developer ID
+# on the maintainer's Mac; it is built with ./package_mac.sh and uploaded by hand.
 on:
   push:
+    branches: ["**"]
+    tags: ["v*"]
   pull_request:
 
 permissions:
@@ -34,17 +39,80 @@ jobs:
             done
           fi
           exit "$code"
-      - name: Build
+
+      - name: Build (Mac)
+        if: runner.os == 'macOS'
         run: cargo build --release
-      - name: Keep the Windows program
+
+      # Linux: built against an old C library so the packages run on older systems too
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          set +e
+          pip install --quiet ziglang cargo-zigbuild
+          mkdir -p "$HOME/bin"
+          curl -sSL -o "$HOME/bin/appimagetool" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$HOME/bin/appimagetool"
+          export PATH="$HOME/bin:$PATH"
+          ./package_linux.sh 2>&1 | tee pack.txt; code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            msg=$(tail -25 pack.txt | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g'); echo "::error::$msg"
+          fi
+          ls -la dist || true
+          exit "$code"
+
+      - name: Package (Windows)
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cleanerio-windows-x64
-          path: target/release/cleanerio.exe
-      - name: Keep the Linux program
+        shell: bash
+        run: |
+          set +e
+          command -v iscc >/dev/null || [ -f "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" ] || choco install innosetup -y --no-progress >/dev/null
+          powershell -ExecutionPolicy Bypass -File ./package_windows.ps1 2>&1 | tee pack.txt; code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            msg=$(tail -25 pack.txt | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g'); echo "::error::$msg"
+          fi
+          ls -la dist || true
+          exit "$code"
+
+      - name: Keep the Linux packages
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: cleanerio-linux-x64
-          path: target/release/cleanerio
+          name: cleanerio-linux
+          if-no-files-found: error
+          path: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.AppImage
+      - name: Keep the Windows packages
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cleanerio-windows
+          if-no-files-found: error
+          path: |
+            dist/Cleanerio-*-windows-x64.zip
+            dist/Cleanerio-*-windows-x64-setup.exe
+
+  # Runs only for a version tag: puts the packages on the release with that tag (and makes
+  # the release, as a draft, if there isn't one yet).
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+      - name: Checksums
+        run: cd packages && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: packages/*
+          fail_on_unmatched_files: true
