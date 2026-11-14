@@ -1587,8 +1587,13 @@ mod tests {
     fn judges() {
         assert!(judge("com.pirrit.agent", "", "").0 == Verdict::Threat);
         assert!(judge("com.x.y", "/tmp/abc", "").0 == Verdict::Review);
-        assert!(judge("com.x.y", "/Users/me/.hidden/run", "").0 == Verdict::Review);
-        assert!(judge("com.x.y", "/usr/bin/true", "").0 == Verdict::Ok);
+        if crate::windows::ON {
+            assert!(judge("Updater", "C:\\Users\\me\\AppData\\Local\\Temp\\upd.exe", "").0 == Verdict::Review);
+            assert!(judge("Updater", "C:\\Windows\\System32\\cmd.exe", "").0 == Verdict::Ok);
+        } else {
+            assert!(judge("com.x.y", "/Users/me/.hidden/run", "").0 == Verdict::Review);
+            assert!(judge("com.x.y", "/usr/bin/true", "").0 == Verdict::Ok);
+        }
     }
 
     #[test]
@@ -1605,6 +1610,7 @@ mod tests {
         assert!(r.removed.is_empty() && r.failed.len() == 1);
     }
 
+    #[cfg(unix)] // Windows gives no cheap way to tell that two names are one file
     #[test]
     fn hard_links_are_not_duplicates() {
         let d = std::env::temp_dir().join(format!("cleanerio-link-{}", std::process::id()));

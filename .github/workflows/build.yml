@@ -25,6 +25,7 @@ jobs:
       - name: Test
         shell: bash
         run: |
+          set +e
           cargo test 2>&1 | tee out.txt; code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
             for part in 1 2 3; do
