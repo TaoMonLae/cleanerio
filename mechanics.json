@@ -186,6 +186,32 @@
    "value": 0.85,
    "unit": "share",
    "source": "Cleanerio rule; see the tests in src/pages.rs and src/scan.rs"
+  },
+  {
+   "name": "duplicate minimum size",
+   "group": "my files",
+   "value": 100000,
+   "unit": "bytes",
+   "estimated": true
+  },
+  {
+   "name": "similar image max differing bits",
+   "group": "my files",
+   "value": 6,
+   "unit": "of 64",
+   "estimated": true
+  },
+  {
+   "name": "similar images max compared",
+   "group": "my files",
+   "value": 3000,
+   "estimated": true
+  },
+  {
+   "name": "ai clutter places",
+   "group": "cleanup",
+   "value": "30 cache/log paths of AI tools",
+   "source": "known cache and log folders of AI coding tools"
   }
  ]
 }
