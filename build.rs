@@ -6,7 +6,10 @@ fn main() {
         res.set_icon("assets/icon.ico");
         res.set("ProductName", "Cleanerio");
         res.set("FileDescription", "Cleanerio");
-        res.set("LegalCopyright", "Copyright (c) 2026 Min Htet Min Aung. MIT License.");
+        res.set(
+            "LegalCopyright",
+            "Copyright (c) 2026 Min Htet Min Aung. MIT License.",
+        );
         if let Err(e) = res.compile() {
             // the program still works without its icon
             println!("cargo:warning=could not add the Windows icon: {e}");

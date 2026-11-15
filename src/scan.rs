@@ -43,7 +43,11 @@ impl<T: Send + 'static> Job<T> {
         let result = Arc::new(Mutex::new(None));
         let cancel = Arc::new(AtomicBool::new(false));
         let stage = Arc::new(AtomicUsize::new(0));
-        let p = Progress { status: status.clone(), cancel: cancel.clone(), stage: stage.clone() };
+        let p = Progress {
+            status: status.clone(),
+            cancel: cancel.clone(),
+            stage: stage.clone(),
+        };
         let r = result.clone();
         let failed = Arc::new(AtomicBool::new(false));
         let fail = failed.clone();
@@ -54,7 +58,13 @@ impl<T: Send + 'static> Job<T> {
                 Err(_) => fail.store(true, Ordering::Relaxed),
             }
         });
-        Job { status, result, cancel, stage, failed }
+        Job {
+            status,
+            result,
+            cancel,
+            stage,
+            failed,
+        }
     }
     /// The work crashed and will never give a result.
     pub fn failed(&self) -> bool {
@@ -66,13 +76,19 @@ impl<T: Send + 'static> Job<T> {
     }
     /// A result is waiting to be collected.
     pub fn finished(&self) -> bool {
-        self.result.lock().unwrap_or_else(|e| e.into_inner()).is_some()
+        self.result
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
     }
     pub fn stage(&self) -> usize {
         self.stage.load(Ordering::Relaxed)
     }
     pub fn status(&self) -> String {
-        self.status.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.status
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
     pub fn take(&self) -> Option<T> {
         self.result.lock().unwrap_or_else(|e| e.into_inner()).take()
@@ -90,7 +106,11 @@ pub fn home() -> PathBuf {
 
 /// The top of the disk the home folder is on: "/" on a Mac or Linux, "C:\\" on Windows.
 pub fn disk_root() -> PathBuf {
-    home().ancestors().last().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("/"))
+    home()
+        .ancestors()
+        .last()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("/"))
 }
 
 /// Space a file really takes on disk.
@@ -154,7 +174,9 @@ pub fn quiet(program: &str) -> std::process::Command {
 
 /// Total size of a file or folder, without following links.
 pub fn dir_size(path: &Path, p: Option<&Progress>) -> u64 {
-    let Ok(md) = std::fs::symlink_metadata(path) else { return 0 };
+    let Ok(md) = std::fs::symlink_metadata(path) else {
+        return 0;
+    };
     if !md.is_dir() {
         return alloc_size(&md);
     }
@@ -165,7 +187,9 @@ pub fn dir_size(path: &Path, p: Option<&Progress>) -> u64 {
         if p.is_some_and(|p| p.cancelled()) {
             break;
         }
-        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for e in rd.flatten() {
             let Ok(md) = e.metadata() else { continue };
             if md.is_dir() {
@@ -193,7 +217,9 @@ pub fn short(p: &Path) -> String {
 }
 
 pub fn file_name(p: &Path) -> String {
-    p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| p.display().to_string())
+    p.file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| p.display().to_string())
 }
 
 pub fn children(dir: &Path) -> Vec<PathBuf> {
@@ -206,7 +232,10 @@ pub fn children(dir: &Path) -> Vec<PathBuf> {
 }
 
 pub fn days_since(t: SystemTime) -> u64 {
-    SystemTime::now().duration_since(t).map(|d| d.as_secs() / 86_400).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(t)
+        .map(|d| d.as_secs() / 86_400)
+        .unwrap_or(0)
 }
 
 /// Folders that macOS or the person's account can't work without. Nothing here is ever moved
@@ -227,16 +256,42 @@ pub fn is_protected(path: &Path) -> bool {
     if SYSTEM.iter().any(|s| path.starts_with(s)) {
         return true;
     }
-    const TOP: &[&str] = &["/Library", "/Applications", "/Users", "/private", "/etc", "/var", "/tmp", "/opt", "/cores", "/Volumes", "/dev"];
+    const TOP: &[&str] = &[
+        "/Library",
+        "/Applications",
+        "/Users",
+        "/private",
+        "/etc",
+        "/var",
+        "/tmp",
+        "/opt",
+        "/cores",
+        "/Volumes",
+        "/dev",
+    ];
     if TOP.iter().any(|s| path == Path::new(s)) {
         return true;
     }
     // other people's home folders and the first level of /Library
-    if path.parent().is_some_and(|p| p == Path::new("/Users") || p == Path::new("/Library")) {
+    if path
+        .parent()
+        .is_some_and(|p| p == Path::new("/Users") || p == Path::new("/Library"))
+    {
         return true;
     }
     // the standard folders in the home folder, and the first level of ~/Library
-    const HOME: &[&str] = &["Library", "Documents", "Desktop", "Downloads", "Movies", "Music", "Pictures", "Public", "Applications", ".Trash"];
+    const HOME: &[&str] = &[
+        "Library",
+        "Documents",
+        "Desktop",
+        "Downloads",
+        "Movies",
+        "Music",
+        "Pictures",
+        "Public",
+        "Applications",
+        ".Trash",
+    ];
     if HOME.iter().any(|d| path == h.join(d)) {
         return true;
     }
@@ -280,16 +335,26 @@ pub fn last_opened_days(path: &Path) -> Option<u64> {
     if !cfg!(target_os = "macos") {
         return None;
     }
-    let out = std::process::Command::new("mdls").args(["-raw", "-name", "kMDItemLastUsedDate"]).arg(path).output().ok()?;
+    let out = std::process::Command::new("mdls")
+        .args(["-raw", "-name", "kMDItemLastUsedDate"])
+        .arg(path)
+        .output()
+        .ok()?;
     let then = parse_mdls_date(String::from_utf8_lossy(&out.stdout).trim())?;
-    let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).ok()?.as_secs();
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
     Some(now.saturating_sub(then) / 86_400)
 }
 
 /// Last opened if macOS knows it; otherwise the newer of the file's own dates, as before.
 fn idle_days(path: &Path, md: Option<&std::fs::Metadata>) -> u64 {
     last_opened_days(path)
-        .or_else(|| md.and_then(|m| m.accessed().ok().max(m.modified().ok())).map(days_since))
+        .or_else(|| {
+            md.and_then(|m| m.accessed().ok().max(m.modified().ok()))
+                .map(days_since)
+        })
         .unwrap_or(0)
 }
 
@@ -299,19 +364,27 @@ pub fn running_bundle_ids() -> HashSet<String> {
         return crate::linux::running_names();
     }
     let mut ids = HashSet::new();
-    let Ok(mut sys) = sysinfo::System::new() else { return ids };
+    let Ok(mut sys) = sysinfo::System::new() else {
+        return ids;
+    };
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let mut seen: HashSet<String> = HashSet::new();
     for proc_ in sys.processes().values() {
         let Some(exe) = proc_.exe() else { continue };
         let exe = exe.to_string_lossy().to_string();
-        let Some(i) = exe.find(".app/Contents/MacOS/") else { continue };
+        let Some(i) = exe.find(".app/Contents/MacOS/") else {
+            continue;
+        };
         let app = exe[..i + 4].to_string();
         if !seen.insert(app.clone()) {
             continue;
         }
         if let Ok(v) = plist::Value::from_file(Path::new(&app).join("Contents/Info.plist")) {
-            if let Some(id) = v.as_dictionary().and_then(|d| d.get("CFBundleIdentifier")).and_then(|v| v.as_string()) {
+            if let Some(id) = v
+                .as_dictionary()
+                .and_then(|d| d.get("CFBundleIdentifier"))
+                .and_then(|v| v.as_string())
+            {
                 ids.insert(id.to_lowercase());
             }
         }
@@ -324,9 +397,13 @@ pub fn app_is_running(app: &Path) -> bool {
     if app.as_os_str().is_empty() {
         return false; // Windows doesn't always record where a program is installed
     }
-    let Ok(mut sys) = sysinfo::System::new() else { return false };
+    let Ok(mut sys) = sysinfo::System::new() else {
+        return false;
+    };
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-    sys.processes().values().any(|p| p.exe().is_some_and(|e| e.starts_with(app)))
+    sys.processes()
+        .values()
+        .any(|p| p.exe().is_some_and(|e| e.starts_with(app)))
 }
 
 /// A cache folder belongs to a running app when it is named after the app's bundle id.
@@ -335,7 +412,9 @@ pub fn cache_in_use(folder_name: &str, running: &HashSet<String>) -> bool {
         return true;
     }
     let n = folder_name.to_lowercase();
-    running.iter().any(|id| n == *id || n.starts_with(&format!("{id}.")))
+    running
+        .iter()
+        .any(|id| n == *id || n.starts_with(&format!("{id}.")))
 }
 
 /// The launchd label of a login agent file in a LaunchAgents folder.
@@ -345,7 +424,10 @@ fn agent_label(path: &Path) -> Option<String> {
             return Some(unit);
         }
     }
-    let in_agents = path.parent().and_then(|p| p.file_name()).is_some_and(|n| n == "LaunchAgents");
+    let in_agents = path
+        .parent()
+        .and_then(|p| p.file_name())
+        .is_some_and(|n| n == "LaunchAgents");
     (in_agents && path.extension().is_some_and(|e| e == "plist")).then(|| plist_program(path).0)
 }
 
@@ -360,7 +442,10 @@ fn unload_agent(label: &str) {
         return;
     }
     if let Ok(md) = std::fs::metadata(home()) {
-        let _ = std::process::Command::new("launchctl").arg("bootout").arg(format!("gui/{}/{label}", owner_id(&md))).output();
+        let _ = std::process::Command::new("launchctl")
+            .arg("bootout")
+            .arg(format!("gui/{}/{label}", owner_id(&md)))
+            .output();
     }
 }
 
@@ -374,7 +459,9 @@ pub fn heavy_apps() -> Vec<(sysinfo::Pid, String, u64, f32)> {
     if crate::windows::ON {
         return crate::windows::heavy_apps();
     }
-    let Ok(mut sys) = sysinfo::System::new() else { return vec![] };
+    let Ok(mut sys) = sysinfo::System::new() else {
+        return vec![];
+    };
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let mut v: Vec<_> = sys
         .processes()
@@ -383,10 +470,19 @@ pub fn heavy_apps() -> Vec<(sysinfo::Pid, String, u64, f32)> {
             pid.as_u32() != std::process::id()
                 && p.exe().is_some_and(|e| {
                     let e = e.to_string_lossy();
-                    e.contains(".app/Contents/MacOS/") && !e.starts_with("/System/") && !e.starts_with("/usr/")
+                    e.contains(".app/Contents/MacOS/")
+                        && !e.starts_with("/System/")
+                        && !e.starts_with("/usr/")
                 })
         })
-        .map(|(pid, p)| (*pid, p.name().to_string_lossy().to_string(), p.memory(), p.cpu_usage()))
+        .map(|(pid, p)| {
+            (
+                *pid,
+                p.name().to_string_lossy().to_string(),
+                p.memory(),
+                p.cpu_usage(),
+            )
+        })
         .collect();
     v.sort_by(|a, b| b.2.cmp(&a.2));
     v.truncate(8);
@@ -399,7 +495,10 @@ pub fn ask_to_quit(pid: u32) {
         crate::windows::ask_to_quit(pid);
         return;
     }
-    let _ = std::process::Command::new("kill").arg("-TERM").arg(pid.to_string()).output();
+    let _ = std::process::Command::new("kill")
+        .arg("-TERM")
+        .arg(pid.to_string())
+        .output();
 }
 
 // ---------------------------------------------------------------- junk
@@ -432,9 +531,7 @@ pub struct JunkGroup {
     pub kind: JunkKind,
     pub title: &'static str,
     pub desc: &'static str,
-    pub icon: &'static str,
     pub items: Vec<JunkItem>,
-    pub expanded: bool,
     pub note: Option<String>,
 }
 
@@ -443,11 +540,20 @@ impl JunkGroup {
         self.items.iter().map(|i| i.size).sum()
     }
     pub fn selected_size(&self) -> u64 {
-        self.items.iter().filter(|i| i.selected).map(|i| i.size).sum()
+        self.items
+            .iter()
+            .filter(|i| i.selected)
+            .map(|i| i.size)
+            .sum()
     }
 }
 
-fn junk_items(dirs: &[PathBuf], filter: impl Fn(&Path) -> bool, on: bool, p: &Progress) -> (Vec<JunkItem>, Option<String>) {
+fn junk_items(
+    dirs: &[PathBuf],
+    filter: impl Fn(&Path) -> bool,
+    on: bool,
+    p: &Progress,
+) -> (Vec<JunkItem>, Option<String>) {
     let mut out = vec![];
     let mut blocked = false;
     for d in dirs {
@@ -470,7 +576,13 @@ fn junk_items(dirs: &[PathBuf], filter: impl Fn(&Path) -> bool, on: bool, p: &Pr
             if size == 0 {
                 continue;
             }
-            out.push(JunkItem { name: file_name(&c), path: c, size, selected: on, in_use: false });
+            out.push(JunkItem {
+                name: file_name(&c),
+                path: c,
+                size,
+                selected: on,
+                in_use: false,
+            });
         }
     }
     out.sort_by(|a, b| b.size.cmp(&a.size));
@@ -505,40 +617,58 @@ fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Caches,
         title: "Cache files",
         desc: "Temporary files apps keep to load faster. Apps rebuild them when needed.",
-        icon: "🗄",
         items,
-        expanded: false,
         note,
     });
 
     p.set("Looking for log files…");
-    let (mut items, note) = junk_items(&[linux::data_home().join("xorg"), h.join(".npm/_logs")], |_| true, true, p);
-    let (more, _) = junk_items(&[h.clone()], |c| file_name(c).starts_with(".xsession-errors"), true, p);
+    let (mut items, note) = junk_items(
+        &[linux::data_home().join("xorg"), h.join(".npm/_logs")],
+        |_| true,
+        true,
+        p,
+    );
+    let (more, _) = junk_items(
+        &[h.clone()],
+        |c| file_name(c).starts_with(".xsession-errors"),
+        true,
+        p,
+    );
     items.extend(more);
     groups.push(JunkGroup {
         kind: JunkKind::Logs,
         title: "Log files",
         desc: "Records of app activity that are mostly useful for troubleshooting.",
-        icon: "📄",
         items,
-        expanded: false,
         note,
     });
 
     p.set("Looking for developer leftovers…");
-    let (mut items, note) = junk_items(&[h.join(".cargo/registry/cache"), h.join(".cargo/registry/src"), h.join(".gradle/caches")], |_| true, false, p);
+    let (mut items, note) = junk_items(
+        &[
+            h.join(".cargo/registry/cache"),
+            h.join(".cargo/registry/src"),
+            h.join(".gradle/caches"),
+        ],
+        |_| true,
+        false,
+        p,
+    );
     let (more, _) = junk_items(&[h.join(".npm")], |c| file_name(c) == "_cacache", false, p);
     items.extend(more);
-    let (more, _) = junk_items(&[h.join("go/pkg/mod")], |c| file_name(c) == "cache", false, p);
+    let (more, _) = junk_items(
+        &[h.join("go/pkg/mod")],
+        |c| file_name(c) == "cache",
+        false,
+        p,
+    );
     items.extend(more);
     items.sort_by(|a, b| b.size.cmp(&a.size));
     groups.push(JunkGroup {
         kind: JunkKind::Developer,
         title: "Developer junk",
         desc: "Downloaded packages that coding tools fetch again when a project needs them.",
-        icon: "🛠",
         items,
-        expanded: false,
         note,
     });
 
@@ -546,8 +676,14 @@ fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
     let (items, note) = junk_items(
         &[h.join("Downloads"), h.join("Desktop")],
         |c| {
-            let ext = c.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-            matches!(ext.as_str(), "deb" | "rpm" | "iso" | "flatpak" | "flatpakref" | "snap")
+            let ext = c
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase())
+                .unwrap_or_default();
+            matches!(
+                ext.as_str(),
+                "deb" | "rpm" | "iso" | "flatpak" | "flatpakref" | "snap"
+            )
         },
         false,
         p,
@@ -556,9 +692,7 @@ fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Installers,
         title: "Old installers",
         desc: "Package files and disk images left in Downloads or on the Desktop.",
-        icon: "💿",
         items,
-        expanded: false,
         note,
     });
 
@@ -568,9 +702,7 @@ fn scan_junk_linux(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Trash,
         title: "Trash",
         desc: "Files you already moved to the Trash. Emptying it frees the space for good.",
-        icon: "🗑",
         items,
-        expanded: false,
         note,
     });
     groups
@@ -599,9 +731,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Caches,
         title: "Cache files",
         desc: "Temporary files apps keep to load faster. Apps rebuild them when needed.",
-        icon: "🗄",
         items,
-        expanded: false,
         note,
     });
 
@@ -611,9 +741,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Logs,
         title: "Log files",
         desc: "Records of app activity that are mostly useful for troubleshooting.",
-        icon: "📄",
         items,
-        expanded: false,
         note,
     });
 
@@ -631,15 +759,18 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
     );
     // Archives hold the builds and debug symbols of apps already shipped. Xcode can't make
     // them again, so they are listed but never ticked.
-    let (archives, _) = junk_items(&[h.join("Library/Developer/Xcode/Archives")], |_| true, false, p);
+    let (archives, _) = junk_items(
+        &[h.join("Library/Developer/Xcode/Archives")],
+        |_| true,
+        false,
+        p,
+    );
     items.extend(archives);
     groups.push(JunkGroup {
         kind: JunkKind::Developer,
         title: "Developer junk",
         desc: "Build products and device support files that coding tools can regenerate.",
-        icon: "🛠",
         items,
-        expanded: false,
         note,
     });
 
@@ -657,9 +788,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Mail,
         title: "Mail downloads",
         desc: "Copies of email attachments you opened. The originals stay in your mail.",
-        icon: "✉",
         items,
-        expanded: false,
         note,
     });
 
@@ -667,7 +796,10 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
     let (items, note) = junk_items(
         &[h.join("Downloads"), h.join("Desktop")],
         |c| {
-            let ext = c.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+            let ext = c
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase())
+                .unwrap_or_default();
             matches!(ext.as_str(), "dmg" | "pkg" | "mpkg" | "xip" | "iso")
         },
         false,
@@ -677,9 +809,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Installers,
         title: "Old installers",
         desc: "Disk images and installer packages left in Downloads or on the Desktop.",
-        icon: "💿",
         items,
-        expanded: false,
         note,
     });
 
@@ -688,21 +818,22 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Ai,
         title: "AI clutter",
         desc: "Caches, logs and old versions left by AI tools. Downloaded local models are listed but not ticked.",
-        icon: "",
         items: crate::extra::ai_clutter(p),
-        expanded: false,
         note: None,
     });
 
     p.set("Looking for phone backups…");
-    let (items, note) = junk_items(&[h.join("Library/Application Support/MobileSync/Backup")], |_| true, false, p);
+    let (items, note) = junk_items(
+        &[h.join("Library/Application Support/MobileSync/Backup")],
+        |_| true,
+        false,
+        p,
+    );
     groups.push(JunkGroup {
         kind: JunkKind::Backups,
         title: "iPhone and iPad backups",
         desc: "Local backups of your devices. Keep the newest if you rely on it.",
-        icon: "",
         items,
-        expanded: false,
         note,
     });
 
@@ -711,9 +842,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::BrokenPrefs,
         title: "Broken preferences",
         desc: "Settings files that can't be read anymore. Apps make fresh ones when needed.",
-        icon: "",
         items: crate::extra::broken_prefs(p),
-        expanded: false,
         note: None,
     });
 
@@ -729,9 +858,7 @@ pub fn scan_junk(p: &Progress) -> Vec<JunkGroup> {
         kind: JunkKind::Trash,
         title: "Trash",
         desc: "Files you already moved to the Trash. Emptying it frees the space for good.",
-        icon: "🗑",
         items,
-        expanded: false,
         note,
     });
     groups
@@ -762,9 +889,17 @@ pub struct AgentItem {
 }
 
 pub fn plist_program(path: &Path) -> (String, String) {
-    let Ok(v) = plist::Value::from_file(path) else { return (file_name(path), String::new()) };
-    let Some(d) = v.as_dictionary() else { return (file_name(path), String::new()) };
-    let label = d.get("Label").and_then(|v| v.as_string()).unwrap_or("").to_string();
+    let Ok(v) = plist::Value::from_file(path) else {
+        return (file_name(path), String::new());
+    };
+    let Some(d) = v.as_dictionary() else {
+        return (file_name(path), String::new());
+    };
+    let label = d
+        .get("Label")
+        .and_then(|v| v.as_string())
+        .unwrap_or("")
+        .to_string();
     let program = d
         .get("Program")
         .and_then(|v| v.as_string())
@@ -777,30 +912,55 @@ pub fn plist_program(path: &Path) -> (String, String) {
                 .map(|s| s.to_string())
         })
         .unwrap_or_default();
-    (if label.is_empty() { file_name(path) } else { label }, program)
+    (
+        if label.is_empty() {
+            file_name(path)
+        } else {
+            label
+        },
+        program,
+    )
 }
 
 pub fn judge(label: &str, program: &str, file: &str) -> (Verdict, String) {
     let all = format!("{label} {program} {file}").to_lowercase();
     if let Some((fam, w)) = crate::threats::load_cached().match_words_pub(&all) {
-        return (Verdict::Threat, format!("{} ({}) · matches “{w}”", fam.0, fam.1));
+        return (
+            Verdict::Threat,
+            format!("{} ({}) · matches “{w}”", fam.0, fam.1),
+        );
     }
     if !program.is_empty() {
         let pp = Path::new(program);
         let temp = ["/tmp", "/private/tmp", "/Users/Shared"];
         let temp_linux = ["/var/tmp", "/dev/shm"];
         let temp_windows = program.to_lowercase().replace('\\', "/").contains("/temp/");
-        if temp.iter().any(|t| program.starts_with(t)) || (crate::linux::ON && temp_linux.iter().any(|t| program.starts_with(t))) || (crate::windows::ON && temp_windows) {
-            return (Verdict::Review, "Runs a program from a shared or temporary folder".into());
+        if temp.iter().any(|t| program.starts_with(t))
+            || (crate::linux::ON && temp_linux.iter().any(|t| program.starts_with(t)))
+            || (crate::windows::ON && temp_windows)
+        {
+            return (
+                Verdict::Review,
+                "Runs a program from a shared or temporary folder".into(),
+            );
         }
-        if !crate::linux::ON && !crate::windows::ON && pp.components().any(|c| {
-            let s = c.as_os_str().to_string_lossy();
-            s.starts_with('.') && s.len() > 1 && s != ".."
-        }) {
-            return (Verdict::Review, "Runs a program hidden in a dot-folder".into());
+        if !crate::linux::ON
+            && !crate::windows::ON
+            && pp.components().any(|c| {
+                let s = c.as_os_str().to_string_lossy();
+                s.starts_with('.') && s.len() > 1 && s != ".."
+            })
+        {
+            return (
+                Verdict::Review,
+                "Runs a program hidden in a dot-folder".into(),
+            );
         }
         if pp.is_absolute() && !pp.exists() {
-            return (Verdict::Review, "Points to a program that no longer exists".into());
+            return (
+                Verdict::Review,
+                "Points to a program that no longer exists".into(),
+            );
         }
     }
     (Verdict::Ok, "Looks normal".into())
@@ -835,7 +995,11 @@ impl AppInfo {
     }
     /// The leftovers that are ticked.
     pub fn chosen(&self) -> Vec<(PathBuf, u64)> {
-        self.leftovers.iter().filter(|l| !self.skip.contains(&l.0)).cloned().collect()
+        self.leftovers
+            .iter()
+            .filter(|l| !self.skip.contains(&l.0))
+            .cloned()
+            .collect()
     }
     /// The app plus its ticked leftovers.
     pub fn chosen_total(&self) -> u64 {
@@ -872,8 +1036,14 @@ pub fn find_leftovers(name: &str, bundle_id: &str, lib: &[PathBuf]) -> Vec<PathB
     lib.iter()
         .filter(|p| {
             let f = file_name(p).to_lowercase();
-            let stem = f.trim_end_matches(".plist").trim_end_matches(".savedstate").trim_end_matches(".binarycookies");
-            (!id_l.is_empty() && (stem == id_l || stem.starts_with(&format!("{id_l}.")) || stem.ends_with(&format!(".{id_l}"))))
+            let stem = f
+                .trim_end_matches(".plist")
+                .trim_end_matches(".savedstate")
+                .trim_end_matches(".binarycookies");
+            (!id_l.is_empty()
+                && (stem == id_l
+                    || stem.starts_with(&format!("{id_l}."))
+                    || stem.ends_with(&format!(".{id_l}"))))
                 || (name_l.len() > 2 && stem == name_l)
         })
         .cloned()
@@ -888,7 +1058,10 @@ pub fn scan_apps(p: &Progress) -> Vec<AppInfo> {
         return crate::windows::scan_apps(p);
     }
     let h = home();
-    let lib: Vec<PathBuf> = LEFTOVER_DIRS.iter().flat_map(|d| children(&h.join(d))).collect();
+    let lib: Vec<PathBuf> = LEFTOVER_DIRS
+        .iter()
+        .flat_map(|d| children(&h.join(d)))
+        .collect();
     let mut bundles = vec![];
     for dir in [PathBuf::from("/Applications"), h.join("Applications")] {
         for a in children(&dir) {
@@ -907,22 +1080,42 @@ pub fn scan_apps(p: &Progress) -> Vec<AppInfo> {
         let (mut bundle_id, mut version) = (String::new(), String::new());
         if let Ok(v) = plist::Value::from_file(a.join("Contents/Info.plist")) {
             if let Some(d) = v.as_dictionary() {
-                bundle_id = d.get("CFBundleIdentifier").and_then(|v| v.as_string()).unwrap_or("").to_string();
-                version = d.get("CFBundleShortVersionString").and_then(|v| v.as_string()).unwrap_or("").to_string();
+                bundle_id = d
+                    .get("CFBundleIdentifier")
+                    .and_then(|v| v.as_string())
+                    .unwrap_or("")
+                    .to_string();
+                version = d
+                    .get("CFBundleShortVersionString")
+                    .and_then(|v| v.as_string())
+                    .unwrap_or("")
+                    .to_string();
             }
         }
         if bundle_id.starts_with("com.apple.") {
             continue; // built into macOS
         }
         let size = dir_size(&a, Some(p));
-        let leftovers = find_leftovers(&name, &bundle_id, &lib).into_iter().map(|l| {
-            let s = dir_size(&l, None);
-            (l, s)
-        });
+        let leftovers = find_leftovers(&name, &bundle_id, &lib)
+            .into_iter()
+            .map(|l| {
+                let s = dir_size(&l, None);
+                (l, s)
+            });
         let last_used_days = idle_days(&a, std::fs::metadata(&a).ok().as_ref());
         let leftovers: Vec<(PathBuf, u64)> = leftovers.collect();
         let skip = name_only_leftovers(&bundle_id, &leftovers);
-        out.push(AppInfo { name, path: a, bundle_id, version, size, leftovers, skip, last_used_days, managed: None });
+        out.push(AppInfo {
+            name,
+            path: a,
+            bundle_id,
+            version,
+            size,
+            leftovers,
+            skip,
+            last_used_days,
+            managed: None,
+        });
     }
     out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     out
@@ -941,14 +1134,19 @@ pub struct BigFile {
 }
 
 pub fn kind_of(p: &Path) -> String {
-    let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let ext = p
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
     match ext.as_str() {
         "mov" | "mp4" | "m4v" | "mkv" | "avi" | "webm" => "Video",
         "mp3" | "m4a" | "wav" | "aiff" | "flac" | "aac" => "Audio",
         "jpg" | "jpeg" | "png" | "heic" | "tiff" | "gif" | "raw" | "psd" => "Picture",
         "zip" | "rar" | "7z" | "tar" | "gz" | "xz" | "tgz" => "Archive",
         "dmg" | "pkg" | "iso" | "xip" | "deb" | "rpm" | "appimage" | "msi" | "msix" => "Installer",
-        "pdf" | "doc" | "docx" | "pages" | "key" | "ppt" | "pptx" | "xls" | "xlsx" | "numbers" => "Document",
+        "pdf" | "doc" | "docx" | "pages" | "key" | "ppt" | "pptx" | "xls" | "xlsx" | "numbers" => {
+            "Document"
+        }
         "app" => "App",
         _ => "Other",
     }
@@ -957,7 +1155,9 @@ pub fn kind_of(p: &Path) -> String {
 
 pub fn scan_big(root: PathBuf, min_bytes: u64, p: &Progress) -> Vec<BigFile> {
     let h = home();
-    let skip: HashSet<PathBuf> = [h.join("Library"), h.join("AppData"), trash_dir()].into_iter().collect();
+    let skip: HashSet<PathBuf> = [h.join("Library"), h.join("AppData"), trash_dir()]
+        .into_iter()
+        .collect();
     let mut out = vec![];
     let mut stack = vec![root];
     let mut n = 0u64;
@@ -965,7 +1165,9 @@ pub fn scan_big(root: PathBuf, min_bytes: u64, p: &Progress) -> Vec<BigFile> {
         if p.cancelled() {
             break;
         }
-        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for e in rd.flatten() {
             let path = e.path();
             let name = file_name(&path);
@@ -978,7 +1180,10 @@ pub fn scan_big(root: PathBuf, min_bytes: u64, p: &Progress) -> Vec<BigFile> {
                 p.set(format!("{n} files checked · {}", short(&dir)));
             }
             if md.is_dir() {
-                if name.ends_with(".app") || name.ends_with(".photoslibrary") || name.ends_with(".musiclibrary") {
+                if name.ends_with(".app")
+                    || name.ends_with(".photoslibrary")
+                    || name.ends_with(".musiclibrary")
+                {
                     continue;
                 }
                 stack.push(path);
@@ -1014,10 +1219,24 @@ const KEEP: usize = 40;
 fn build_node(path: &Path, p: &Progress, depth: usize, counter: &mut u64) -> Node {
     let name = file_name(path);
     let Ok(md) = std::fs::symlink_metadata(path) else {
-        return Node { name, path: path.into(), size: 0, is_dir: false, children: vec![], items: 0 };
+        return Node {
+            name,
+            path: path.into(),
+            size: 0,
+            is_dir: false,
+            children: vec![],
+            items: 0,
+        };
     };
     if !md.is_dir() {
-        return Node { name, path: path.into(), size: alloc_size(&md), is_dir: false, children: vec![], items: 1 };
+        return Node {
+            name,
+            path: path.into(),
+            size: alloc_size(&md),
+            is_dir: false,
+            children: vec![],
+            items: 1,
+        };
     }
     *counter += 1;
     if *counter % 300 == 0 {
@@ -1055,7 +1274,14 @@ fn build_node(path: &Path, p: &Progress, depth: usize, counter: &mut u64) -> Nod
     if depth > 12 {
         kids.clear();
     }
-    Node { name, path: path.into(), size, is_dir: true, children: kids, items }
+    Node {
+        name,
+        path: path.into(),
+        size,
+        is_dir: true,
+        children: kids,
+        items,
+    }
 }
 
 pub fn scan_space(root: PathBuf, p: &Progress) -> Node {
@@ -1078,7 +1304,9 @@ pub fn trash_paths(paths: Vec<(PathBuf, u64)>, p: &Progress) -> ActionReport {
     let mut r = ActionReport::default();
     let mut todo: Vec<(PathBuf, u64, Option<String>)> = vec![];
     for (path, size) in paths {
-        if let Some((key, name)) = crate::windows::registry_entry(&path).filter(|_| crate::windows::ON) {
+        if let Some((key, name)) =
+            crate::windows::registry_entry(&path).filter(|_| crate::windows::ON)
+        {
             // a startup entry kept in the Windows registry: there is no file to move
             match crate::windows::remove_registry_entry(&key, &name) {
                 Ok(()) => r.removed.push(path),
@@ -1113,7 +1341,11 @@ pub fn trash_paths(paths: Vec<(PathBuf, u64)>, p: &Progress) -> ActionReport {
     // One by one, so a single failure doesn't stop the rest.
     let n = todo.len();
     for (i, (path, size, agent)) in todo.into_iter().enumerate() {
-        p.set(words(&format!("Moving to Trash ({}/{n}) {}", i + 1, file_name(&path))));
+        p.set(words(&format!(
+            "Moving to Trash ({}/{n}) {}",
+            i + 1,
+            file_name(&path)
+        )));
         if std::fs::symlink_metadata(&path).is_err() {
             done(&mut r, path, size, agent); // the attempt above already moved it
             continue;
@@ -1133,7 +1365,11 @@ pub fn empty_trash(p: &Progress, size: u64) -> ActionReport {
     let _ = size; // already counted when the files were moved to the Trash
     if crate::linux::ON || crate::windows::ON {
         let mut r = ActionReport::default();
-        let emptied = if crate::windows::ON { crate::windows::empty_recycle_bin() } else { crate::linux::empty_trash() };
+        let emptied = if crate::windows::ON {
+            crate::windows::empty_recycle_bin()
+        } else {
+            crate::linux::empty_trash()
+        };
         match emptied {
             Ok(()) => {
                 r.removed = before;
@@ -1152,7 +1388,12 @@ pub fn empty_trash(p: &Progress, size: u64) -> ActionReport {
             r.removed = before;
             r.message = "The Trash is empty.".into();
         }
-        Ok(o) => r.message = format!("Couldn't empty the Trash: {}", String::from_utf8_lossy(&o.stderr).trim()),
+        Ok(o) => {
+            r.message = format!(
+                "Couldn't empty the Trash: {}",
+                String::from_utf8_lossy(&o.stderr).trim()
+            )
+        }
         Err(e) => r.message = format!("Couldn't empty the Trash: {e}"),
     }
     r
@@ -1163,7 +1404,6 @@ pub fn empty_trash(p: &Progress, size: u64) -> ActionReport {
 pub struct Task {
     pub title: &'static str,
     pub desc: &'static str,
-    pub icon: &'static str,
     pub admin: bool,
     pub cmd: &'static str,
     pub selected: bool,
@@ -1181,16 +1421,86 @@ pub fn tasks() -> Vec<Task> {
         return crate::windows::tasks();
     }
     vec![
-        Task { title: "Free up memory", desc: "Rarely needed: macOS manages memory well on its own.", icon: "🧠", admin: true, cmd: "purge", selected: false, last: None },
-        Task { title: "Flush DNS cache", desc: "Fixes websites that won't load after network changes.", icon: "🌐", admin: true, cmd: "dscacheutil -flushcache; killall -HUP mDNSResponder", selected: false, last: None },
-        Task { title: "Reindex Spotlight", desc: "Rebuilds the search index. Search is slow for an hour or more while it works.", icon: "🔍", admin: true, cmd: "mdutil -E /", selected: false, last: None },
-        Task { title: "Rebuild Launch Services", desc: "Fixes duplicate entries in “Open With” menus. May do little on recent macOS.", icon: "📋", admin: false, cmd: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user", selected: false, last: None },
-        Task { title: "Clear Quick Look cache", desc: "Refreshes file previews that show the wrong picture.", icon: "👁", admin: false, cmd: "qlmanage -r cache", selected: true, last: None },
-        Task { title: "Free up purgeable space", desc: "Thins the local snapshots macOS keeps, so space it holds back becomes free.", icon: "", admin: true, cmd: "tmutil thinlocalsnapshots / 999999999999 4", selected: false, last: None },
-        Task { title: "Thin Time Machine snapshots", desc: "Deletes the local Time Machine snapshots on this disk. Backups on your backup drive stay.", icon: "", admin: true, cmd: "tmutil deletelocalsnapshots /", selected: false, last: None },
-        Task { title: "Speed up Mail", desc: "Compacts Mail's message index so searching and opening mail is quicker. Quit Mail first.", icon: "", admin: false, cmd: "if pgrep -x Mail >/dev/null; then echo 'Quit Mail first' >&2; exit 1; fi; for f in ~/Library/Mail/V*/MailData/'Envelope Index'; do [ -f \"$f\" ] && sqlite3 \"$f\" vacuum; done", selected: false, last: None },
-        Task { title: "Repair disk permissions", desc: "Resets the permissions of your home folder's files to what macOS expects.", icon: "", admin: false, cmd: "diskutil resetUserPermissions / $(id -u)", selected: false, last: None },
-        Task { title: "Restart Dock and Finder", desc: "Fixes a stuck Dock or Finder window without logging out.", icon: "🔄", admin: false, cmd: "killall Dock; killall Finder", selected: false, last: None },
+        Task {
+            title: "Free up memory",
+            desc: "Rarely needed: macOS manages memory well on its own.",
+            admin: true,
+            cmd: "purge",
+            selected: false,
+            last: None,
+        },
+        Task {
+            title: "Flush DNS cache",
+            desc: "Fixes websites that won't load after network changes.",
+            admin: true,
+            cmd: "dscacheutil -flushcache; killall -HUP mDNSResponder",
+            selected: false,
+            last: None,
+        },
+        Task {
+            title: "Reindex Spotlight",
+            desc: "Rebuilds the search index. Search is slow for an hour or more while it works.",
+            admin: true,
+            cmd: "mdutil -E /",
+            selected: false,
+            last: None,
+        },
+        Task {
+            title: "Rebuild Launch Services",
+            desc: "Fixes duplicate entries in “Open With” menus. May do little on recent macOS.",
+            admin: false,
+            cmd: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user",
+            selected: false,
+            last: None,
+        },
+        Task {
+            title: "Clear Quick Look cache",
+            desc: "Refreshes file previews that show the wrong picture.",
+            admin: false,
+            cmd: "qlmanage -r cache",
+            selected: true,
+            last: None,
+        },
+        Task {
+            title: "Free up purgeable space",
+            desc: "Thins the local snapshots macOS keeps, so space it holds back becomes free.",
+            admin: true,
+            cmd: "tmutil thinlocalsnapshots / 999999999999 4",
+            selected: false,
+            last: None,
+        },
+        Task {
+            title: "Thin Time Machine snapshots",
+            desc: "Deletes the local Time Machine snapshots on this disk. Backups on your backup drive stay.",
+            admin: true,
+            cmd: "tmutil deletelocalsnapshots /",
+            selected: false,
+            last: None,
+        },
+        Task {
+            title: "Speed up Mail",
+            desc: "Compacts Mail's message index so searching and opening mail is quicker. Quit Mail first.",
+            admin: false,
+            cmd: "if pgrep -x Mail >/dev/null; then echo 'Quit Mail first' >&2; exit 1; fi; for f in ~/Library/Mail/V*/MailData/'Envelope Index'; do [ -f \"$f\" ] && sqlite3 \"$f\" vacuum; done",
+            selected: false,
+            last: None,
+        },
+        Task {
+            title: "Repair disk permissions",
+            desc: "Resets the permissions of your home folder's files to what macOS expects.",
+            admin: false,
+            cmd: "diskutil resetUserPermissions / $(id -u)",
+            selected: false,
+            last: None,
+        },
+        Task {
+            title: "Restart Dock and Finder",
+            desc: "Fixes a stuck Dock or Finder window without logging out.",
+            admin: false,
+            cmd: "killall Dock; killall Finder",
+            selected: false,
+            last: None,
+        },
     ]
 }
 
@@ -1201,18 +1511,32 @@ pub fn run_tasks(cmds: Vec<(usize, bool, String)>, p: &Progress) -> Vec<(usize, 
     let admin: Vec<_> = cmds.iter().filter(|c| c.1).collect();
     if !admin.is_empty() {
         p.set("Waiting for your password…");
-        let joined = admin.iter().map(|c| c.2.clone()).collect::<Vec<_>>().join("; ");
+        let joined = admin
+            .iter()
+            .map(|c| c.2.clone())
+            .collect::<Vec<_>>()
+            .join("; ");
         let msg = if crate::windows::ON {
             crate::windows::run_admin(&admin.iter().map(|c| c.2.clone()).collect::<Vec<_>>())
         } else if crate::linux::ON {
             crate::linux::run_admin(&joined)
         } else {
-            let script = format!("do shell script \"{}\" with administrator privileges", joined.replace('"', "\\\""));
-            match std::process::Command::new("osascript").args(["-e", &script]).output() {
+            let script = format!(
+                "do shell script \"{}\" with administrator privileges",
+                joined.replace('"', "\\\"")
+            );
+            match std::process::Command::new("osascript")
+                .args(["-e", &script])
+                .output()
+            {
                 Ok(o) if o.status.success() => "Done".to_string(),
                 Ok(o) => {
                     let e = String::from_utf8_lossy(&o.stderr).to_string();
-                    if e.contains("-128") { "Cancelled".into() } else { format!("Failed: {}", e.trim()) }
+                    if e.contains("-128") {
+                        "Cancelled".into()
+                    } else {
+                        format!("Failed: {}", e.trim())
+                    }
                 }
                 Err(e) => format!("Failed: {e}"),
             }
@@ -1223,10 +1547,20 @@ pub fn run_tasks(cmds: Vec<(usize, bool, String)>, p: &Progress) -> Vec<(usize, 
     }
     for c in cmds.iter().filter(|c| !c.1) {
         p.set(format!("Running task {}…", c.0 + 1));
-        let out = if crate::windows::ON { crate::windows::run_plain(&c.2) } else { std::process::Command::new("sh").args(["-c", &c.2]).output() };
+        let out = if crate::windows::ON {
+            crate::windows::run_plain(&c.2)
+        } else {
+            std::process::Command::new("sh").args(["-c", &c.2]).output()
+        };
         let msg = match out {
             Ok(o) if o.status.success() => "Done".to_string(),
-            Ok(o) => format!("Finished with a warning: {}", String::from_utf8_lossy(&o.stderr).lines().next().unwrap_or("")),
+            Ok(o) => format!(
+                "Finished with a warning: {}",
+                String::from_utf8_lossy(&o.stderr)
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+            ),
             Err(e) => format!("Failed: {e}"),
         };
         results.push((c.0, msg));
@@ -1289,11 +1623,15 @@ fn hash_file(path: &Path, limit: Option<u64>) -> Option<u64> {
 /// True when two files hold exactly the same bytes.
 fn same_bytes(a: &Path, b: &Path) -> bool {
     use std::io::Read;
-    let (Ok(mut fa), Ok(mut fb)) = (std::fs::File::open(a), std::fs::File::open(b)) else { return false };
+    let (Ok(mut fa), Ok(mut fb)) = (std::fs::File::open(a), std::fs::File::open(b)) else {
+        return false;
+    };
     let mut ba = vec![0u8; 256 * 1024];
     let mut bb = vec![0u8; 256 * 1024];
     loop {
-        let Ok(n) = fa.read(&mut ba) else { return false };
+        let Ok(n) = fa.read(&mut ba) else {
+            return false;
+        };
         let mut got = 0;
         while got < n {
             match fb.read(&mut bb[got..n]) {
@@ -1315,7 +1653,9 @@ fn same_bytes(a: &Path, b: &Path) -> bool {
 /// finally byte for byte. Two names for one file (hard links) count once.
 pub fn scan_duplicates(root: PathBuf, p: &Progress) -> Vec<DupGroup> {
     let mut by_size: std::collections::HashMap<u64, Vec<PathBuf>> = Default::default();
-    let skip: HashSet<PathBuf> = [home().join("Library"), home().join("AppData"), trash_dir()].into_iter().collect();
+    let skip: HashSet<PathBuf> = [home().join("Library"), home().join("AppData"), trash_dir()]
+        .into_iter()
+        .collect();
     let mut stack = vec![root];
     let mut n = 0u64;
     let mut seen_files: HashSet<(u64, u64)> = HashSet::new();
@@ -1323,7 +1663,9 @@ pub fn scan_duplicates(root: PathBuf, p: &Progress) -> Vec<DupGroup> {
         if p.cancelled() {
             return vec![];
         }
-        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for e in rd.flatten() {
             let path = e.path();
             let name = file_name(&path);
@@ -1350,7 +1692,8 @@ pub fn scan_duplicates(root: PathBuf, p: &Progress) -> Vec<DupGroup> {
             }
         }
     }
-    let candidates: Vec<(u64, Vec<PathBuf>)> = by_size.into_iter().filter(|(_, v)| v.len() > 1).collect();
+    let candidates: Vec<(u64, Vec<PathBuf>)> =
+        by_size.into_iter().filter(|(_, v)| v.len() > 1).collect();
     let total = candidates.len();
     let mut out = vec![];
     for (i, (size, paths)) in candidates.into_iter().enumerate() {
@@ -1380,16 +1723,29 @@ pub fn scan_duplicates(root: PathBuf, p: &Progress) -> Vec<DupGroup> {
                 let mut files: Vec<DupFile> = group
                     .into_iter()
                     .map(|path| {
-                        let age = std::fs::metadata(&path).and_then(|m| m.modified()).map(days_since).unwrap_or(0);
-                        DupFile { path, age_days: age, selected: false }
+                        let age = std::fs::metadata(&path)
+                            .and_then(|m| m.modified())
+                            .map(days_since)
+                            .unwrap_or(0);
+                        DupFile {
+                            path,
+                            age_days: age,
+                            selected: false,
+                        }
                     })
                     .collect();
                 files.sort_by_key(|f| f.age_days);
-                out.push(DupGroup { size, name: file_name(&files[0].path), files });
+                out.push(DupGroup {
+                    size,
+                    name: file_name(&files[0].path),
+                    files,
+                });
             }
         }
     }
-    out.sort_by(|a, b| (b.size * (b.files.len() as u64 - 1)).cmp(&(a.size * (a.files.len() as u64 - 1))));
+    out.sort_by(|a, b| {
+        (b.size * (b.files.len() as u64 - 1)).cmp(&(a.size * (a.files.len() as u64 - 1)))
+    });
     out
 }
 
@@ -1405,7 +1761,11 @@ pub fn scan_downloads(p: &Progress) -> Vec<BigFile> {
         let md = std::fs::symlink_metadata(&c).ok();
         let idle = idle_days(&c, md.as_ref());
         out.push(BigFile {
-            kind: if md.is_some_and(|m| m.is_dir()) { "Folder".into() } else { kind_of(&c) },
+            kind: if md.is_some_and(|m| m.is_dir()) {
+                "Folder".into()
+            } else {
+                kind_of(&c)
+            },
             name: file_name(&c),
             size: dir_size(&c, None),
             age_days: idle,
@@ -1419,6 +1779,7 @@ pub fn scan_downloads(p: &Progress) -> Vec<BigFile> {
 
 // ---------------------------------------------------------------- cloud
 
+#[allow(dead_code)]
 pub struct CloudFolder {
     pub name: String,
     pub path: PathBuf,
@@ -1431,10 +1792,18 @@ pub fn scan_cloud(p: &Progress) -> Vec<CloudFolder> {
     let h = home();
     let mut roots = vec![];
     if crate::linux::ON {
-        roots.extend(crate::linux::cloud_roots().into_iter().map(|(name, path)| (name, path, false)));
+        roots.extend(
+            crate::linux::cloud_roots()
+                .into_iter()
+                .map(|(name, path)| (name, path, false)),
+        );
     }
     if crate::windows::ON {
-        roots.extend(crate::windows::cloud_roots().into_iter().map(|(name, path)| (name, path, false)));
+        roots.extend(
+            crate::windows::cloud_roots()
+                .into_iter()
+                .map(|(name, path)| (name, path, false)),
+        );
     }
     let icloud = h.join("Library/Mobile Documents/com~apple~CloudDocs");
     if icloud.exists() {
@@ -1453,9 +1822,19 @@ pub fn scan_cloud(p: &Progress) -> Vec<CloudFolder> {
         let local = dir_size(&path, Some(p));
         let mut files = scan_big(path.clone(), 20_000_000, p);
         // only files actually stored on this Mac
-        files.retain(|f| std::fs::metadata(&f.path).map(|m| stored_locally(&m)).unwrap_or(false));
+        files.retain(|f| {
+            std::fs::metadata(&f.path)
+                .map(|m| stored_locally(&m))
+                .unwrap_or(false)
+        });
         files.truncate(60);
-        out.push(CloudFolder { name, path, local, icloud: is_icloud, files });
+        out.push(CloudFolder {
+            name,
+            path,
+            local,
+            icloud: is_icloud,
+            files,
+        });
     }
     out
 }
@@ -1465,16 +1844,25 @@ pub fn evict(paths: Vec<(PathBuf, u64)>, p: &Progress) -> ActionReport {
     let mut r = ActionReport::default();
     for (path, size) in paths {
         p.set(format!("Freeing {}", file_name(&path)));
-        match std::process::Command::new("brctl").arg("evict").arg(&path).output() {
+        match std::process::Command::new("brctl")
+            .arg("evict")
+            .arg(&path)
+            .output()
+        {
             Ok(o) if o.status.success() => {
                 r.freed += size;
                 r.removed.push(path);
             }
-            Ok(o) => r.failed.push((path, String::from_utf8_lossy(&o.stderr).to_string())),
+            Ok(o) => r
+                .failed
+                .push((path, String::from_utf8_lossy(&o.stderr).to_string())),
             Err(e) => r.failed.push((path, e.to_string())),
         }
     }
-    r.message = format!("Freed {} on this Mac · files are still in iCloud", human(r.freed));
+    r.message = format!(
+        "Freed {} on this Mac · files are still in iCloud",
+        human(r.freed)
+    );
     r
 }
 
@@ -1502,7 +1890,14 @@ pub fn login_items() -> Result<Vec<String>, String> {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
     }
     let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    Ok(if s.is_empty() { vec![] } else { s.lines().map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect() })
+    Ok(if s.is_empty() {
+        vec![]
+    } else {
+        s.lines()
+            .map(|x| x.trim().to_string())
+            .filter(|x| !x.is_empty())
+            .collect()
+    })
 }
 
 pub fn remove_login_item(name: &str) -> Result<(), String> {
@@ -1512,9 +1907,19 @@ pub fn remove_login_item(name: &str) -> Result<(), String> {
     if crate::windows::ON {
         return crate::windows::remove_login_item(name);
     }
-    let script = format!("tell application \"System Events\" to delete login item \"{}\"", name.replace('"', ""));
-    let out = std::process::Command::new("osascript").args(["-e", &script]).output().map_err(|e| e.to_string())?;
-    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
+    let script = format!(
+        "tell application \"System Events\" to delete login item \"{}\"",
+        name.replace('"', "")
+    );
+    let out = std::process::Command::new("osascript")
+        .args(["-e", &script])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+    }
 }
 
 // ---------------------------------------------------------------- quick looks for the smart scan
@@ -1526,7 +1931,11 @@ pub struct AppsSummary {
 
 pub fn apps_summary() -> AppsSummary {
     if crate::linux::ON || crate::windows::ON {
-        let (total, unused) = if crate::windows::ON { crate::windows::apps_summary() } else { crate::linux::apps_summary() };
+        let (total, unused) = if crate::windows::ON {
+            crate::windows::apps_summary()
+        } else {
+            crate::linux::apps_summary()
+        };
         return AppsSummary { total, unused };
     }
     let mut total = 0;
@@ -1547,7 +1956,19 @@ pub fn apps_summary() -> AppsSummary {
 
 pub fn clutter_roots() -> Vec<PathBuf> {
     let h = home();
-    ["Downloads", "Desktop", "Documents", "Movies", "Videos", "Music", "Pictures"].iter().map(|d| h.join(d)).filter(|p| p.exists()).collect()
+    [
+        "Downloads",
+        "Desktop",
+        "Documents",
+        "Movies",
+        "Videos",
+        "Music",
+        "Pictures",
+    ]
+    .iter()
+    .map(|d| h.join(d))
+    .filter(|p| p.exists())
+    .collect()
 }
 
 // ---------------------------------------------------------------- activity history
@@ -1577,7 +1998,11 @@ pub fn trash_dir() -> PathBuf {
 
 /// Bytes waiting in the Trash.
 pub fn trash_size() -> u64 {
-    if crate::windows::ON { crate::windows::recycle_bin_size() } else { dir_size(&trash_dir(), None) }
+    if crate::windows::ON {
+        crate::windows::recycle_bin_size()
+    } else {
+        dir_size(&trash_dir(), None)
+    }
 }
 
 /// The Trash size for the interface: the last measured value, refreshed on a background
@@ -1602,7 +2027,11 @@ pub fn trash_size_cached() -> u64 {
 
 /// Text for the interface with the system's own name for the Trash.
 pub fn words(text: &str) -> String {
-    if crate::windows::ON { text.replace("Trash", "Recycle Bin") } else { text.to_string() }
+    if crate::windows::ON {
+        text.replace("Trash", "Recycle Bin")
+    } else {
+        text.to_string()
+    }
 }
 
 /// True on a Mac. The Mac-only screens (privacy items, app permissions, the updater, leftovers
@@ -1643,10 +2072,17 @@ pub fn log_activity(what: &str, bytes: u64) {
     if let Some(d) = f.parent() {
         let _ = std::fs::create_dir_all(d);
     }
-    let ts = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let ts = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     let line = format!("{ts}\t{bytes}\t{}\n", what.replace(['\t', '\n'], " "));
     use std::io::Write;
-    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(f) {
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(f)
+    {
         let _ = file.write_all(line.as_bytes());
     }
 }
@@ -1657,7 +2093,11 @@ pub fn read_activity() -> Vec<(u64, u64, String)> {
         .lines()
         .filter_map(|l| {
             let mut it = l.splitn(3, '\t');
-            Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?, it.next()?.to_string()))
+            Some((
+                it.next()?.parse().ok()?,
+                it.next()?.parse().ok()?,
+                it.next()?.to_string(),
+            ))
         })
         .collect();
     v.reverse();
@@ -1673,7 +2113,14 @@ mod tests {
         assert!(judge("com.pirrit.agent", "", "").0 == Verdict::Threat);
         assert!(judge("com.x.y", "/tmp/abc", "").0 == Verdict::Review);
         if crate::windows::ON {
-            assert!(judge("Updater", "C:\\Users\\me\\AppData\\Local\\Temp\\upd.exe", "").0 == Verdict::Review);
+            assert!(
+                judge(
+                    "Updater",
+                    "C:\\Users\\me\\AppData\\Local\\Temp\\upd.exe",
+                    ""
+                )
+                .0 == Verdict::Review
+            );
             assert!(judge("Updater", "C:\\Windows\\System32\\cmd.exe", "").0 == Verdict::Ok);
         } else {
             assert!(judge("com.x.y", "/Users/me/.hidden/run", "").0 == Verdict::Review);
@@ -1684,13 +2131,30 @@ mod tests {
     #[test]
     fn protected_folders() {
         let h = home();
-        for p in [PathBuf::from("/"), PathBuf::from("/Applications"), PathBuf::from("/System/Library"), h.clone(), h.join("Library"), h.join("Documents"), h.join("Library/Caches")] {
+        for p in [
+            PathBuf::from("/"),
+            PathBuf::from("/Applications"),
+            PathBuf::from("/System/Library"),
+            h.clone(),
+            h.join("Library"),
+            h.join("Documents"),
+            h.join("Library/Caches"),
+        ] {
             assert!(is_protected(&p), "{} should be protected", p.display());
         }
-        for p in [h.join("Library/Caches/com.acme.paint"), h.join("Downloads/old.dmg"), PathBuf::from("/Applications/Paint.app"), PathBuf::from("/Library/LaunchDaemons/com.x.plist")] {
+        for p in [
+            h.join("Library/Caches/com.acme.paint"),
+            h.join("Downloads/old.dmg"),
+            PathBuf::from("/Applications/Paint.app"),
+            PathBuf::from("/Library/LaunchDaemons/com.x.plist"),
+        ] {
             assert!(!is_protected(&p), "{} should be removable", p.display());
         }
-        let p = Progress { status: Default::default(), cancel: Default::default(), stage: Default::default() };
+        let p = Progress {
+            status: Default::default(),
+            cancel: Default::default(),
+            stage: Default::default(),
+        };
         let r = trash_paths(vec![(h.join("Documents"), 1)], &p);
         assert!(r.removed.is_empty() && r.failed.len() == 1);
     }
@@ -1702,7 +2166,11 @@ mod tests {
         std::fs::create_dir_all(&d).unwrap();
         std::fs::write(d.join("one.bin"), vec![3u8; 600 * 1024]).unwrap();
         std::fs::hard_link(d.join("one.bin"), d.join("same.bin")).unwrap();
-        let p = Progress { status: Default::default(), cancel: Default::default(), stage: Default::default() };
+        let p = Progress {
+            status: Default::default(),
+            cancel: Default::default(),
+            stage: Default::default(),
+        };
         let g = scan_duplicates(d.clone(), &p);
         std::fs::remove_dir_all(&d).unwrap();
         assert!(g.is_empty());
@@ -1711,13 +2179,19 @@ mod tests {
     #[test]
     fn dates_and_running_apps() {
         assert_eq!(parse_mdls_date("1970-01-02 00:00:00 +0000"), Some(86_400));
-        assert_eq!(parse_mdls_date("2026-11-12 13:00:00 +0000"), Some(1_794_488_400));
+        assert_eq!(
+            parse_mdls_date("2026-11-12 13:00:00 +0000"),
+            Some(1_794_488_400)
+        );
         assert_eq!(parse_mdls_date("(null)"), None);
         let running: HashSet<String> = ["com.google.chrome".to_string()].into_iter().collect();
         assert!(cache_in_use("com.google.Chrome", &running));
         assert!(cache_in_use("com.google.Chrome.helper", &running));
         assert!(!cache_in_use("com.spotify.client", &running));
-        assert_eq!(agent_label(Path::new("/h/Library/LaunchAgents/com.x.plist")).as_deref(), Some("com.x.plist"));
+        assert_eq!(
+            agent_label(Path::new("/h/Library/LaunchAgents/com.x.plist")).as_deref(),
+            Some("com.x.plist")
+        );
         assert!(agent_label(Path::new("/h/Library/Preferences/com.x.plist")).is_none());
     }
 
@@ -1760,7 +2234,10 @@ mod tests {
             PathBuf::from("/h/Library/Application Support/Other"),
         ];
         assert_eq!(find_leftovers("Paint", "com.acme.paint", &lib).len(), 3);
-        let found: Vec<(PathBuf, u64)> = find_leftovers("Paint", "com.acme.paint", &lib).into_iter().map(|p| (p, 1)).collect();
+        let found: Vec<(PathBuf, u64)> = find_leftovers("Paint", "com.acme.paint", &lib)
+            .into_iter()
+            .map(|p| (p, 1))
+            .collect();
         let skip = name_only_leftovers("com.acme.paint", &found);
         assert_eq!(skip.len(), 1);
         assert!(skip.contains(&PathBuf::from("/h/Library/Application Support/Paint")));
@@ -1776,7 +2253,11 @@ mod tests {
         let mut other = data.clone();
         other[500_000] = 1;
         std::fs::write(d.join("three.bin"), &other).unwrap();
-        let p = Progress { status: Default::default(), cancel: Default::default(), stage: Default::default() };
+        let p = Progress {
+            status: Default::default(),
+            cancel: Default::default(),
+            stage: Default::default(),
+        };
         let g = scan_duplicates(d.clone(), &p);
         std::fs::remove_dir_all(&d).unwrap();
         assert_eq!(g.len(), 1);
@@ -1793,12 +2274,21 @@ mod tests {
 /// Free space below which the app warns: of the choices 2, 5, 10, 20, 30, 50 and 100 GB, the one
 /// closest to 10% of the startup disk (an unknown size counts as 1 TB).
 pub fn low_disk_limit(disk_total: u64) -> u64 {
-    let cap = if disk_total <= 1 { 1_000_000_000_000 } else { disk_total };
+    let cap = if disk_total <= 1 {
+        1_000_000_000_000
+    } else {
+        disk_total
+    };
     let target = cap as f64 * 0.10;
     [2u64, 5, 10, 20, 30, 50, 100]
         .iter()
         .map(|g| g * 1_000_000_000)
-        .min_by(|a, b| (*a as f64 - target).abs().partial_cmp(&(*b as f64 - target).abs()).unwrap())
+        .min_by(|a, b| {
+            (*a as f64 - target)
+                .abs()
+                .partial_cmp(&(*b as f64 - target).abs())
+                .unwrap()
+        })
         .unwrap()
 }
 
@@ -1810,10 +2300,19 @@ pub fn battery() -> Option<(u8, String)> {
     if crate::windows::ON {
         return crate::windows::battery();
     }
-    let out = std::process::Command::new("pmset").args(["-g", "batt"]).output().ok()?;
+    let out = std::process::Command::new("pmset")
+        .args(["-g", "batt"])
+        .output()
+        .ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     let line = s.lines().find(|l| l.contains("InternalBattery"))?;
-    let pct: u8 = line.split('%').next()?.rsplit(|c: char| !c.is_ascii_digit()).next()?.parse().ok()?;
+    let pct: u8 = line
+        .split('%')
+        .next()?
+        .rsplit(|c: char| !c.is_ascii_digit())
+        .next()?
+        .parse()
+        .ok()?;
     let state = if line.contains("discharging") {
         "On battery"
     } else if line.contains("charging") {
@@ -1832,7 +2331,10 @@ pub fn wifi_name() -> Option<String> {
     if crate::windows::ON {
         return crate::windows::wifi_name();
     }
-    let out = std::process::Command::new("ipconfig").args(["getsummary", "en0"]).output().ok()?;
+    let out = std::process::Command::new("ipconfig")
+        .args(["getsummary", "en0"])
+        .output()
+        .ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     s.lines()
         .find_map(|l| l.trim().strip_prefix("SSID : "))
@@ -1864,13 +2366,27 @@ pub fn battery_condition() -> Option<String> {
     if crate::windows::ON {
         return None;
     }
-    let out = std::process::Command::new("system_profiler").arg("SPPowerDataType").output().ok()?;
+    let out = std::process::Command::new("system_profiler")
+        .arg("SPPowerDataType")
+        .output()
+        .ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();
-    s.lines().find_map(|l| l.trim().strip_prefix("Condition: ").map(|x| x.trim().to_string()))
+    s.lines().find_map(|l| {
+        l.trim()
+            .strip_prefix("Condition: ")
+            .map(|x| x.trim().to_string())
+    })
 }
 
 /// Days since the newest activity entry with this text, if any.
 pub fn days_since_logged(history: &[(u64, u64, String)], what: &str) -> Option<u64> {
-    let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    history.iter().filter(|h| h.2 == what).map(|h| now.saturating_sub(h.0) / 86_400).min()
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    history
+        .iter()
+        .filter(|h| h.2 == what)
+        .map(|h| now.saturating_sub(h.0) / 86_400)
+        .min()
 }
