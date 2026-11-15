@@ -16,14 +16,26 @@ impl CleanerApp {
         let s = self.settings.clone();
         if let Some(j) = &mut self.junk {
             for g in j.iter_mut() {
-                g.items.retain(|i| !s.ignored(&i.path));
+                g.items.retain(|i| !s.protects(&i.path));
             }
         }
         if let Some(b) = &mut self.big {
-            b.retain(|f| !s.ignored(&f.path));
+            b.retain(|f| !s.protects(&f.path));
         }
         if let Some(d) = &mut self.downloads {
-            d.retain(|f| !s.ignored(&f.path));
+            d.retain(|f| !s.protects(&f.path));
+        }
+        if let Some(d) = &mut self.dups {
+            for g in d.iter_mut() {
+                g.files.retain(|f| !s.protects(&f.path));
+            }
+            d.retain(|g| g.files.len() > 1);
+        }
+        if let Some(m) = &mut self.similar {
+            for g in m.iter_mut() {
+                g.files.retain(|f| !s.protects(&f.path));
+            }
+            m.retain(|g| g.files.len() > 1);
         }
     }
 

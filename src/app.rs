@@ -794,12 +794,6 @@ impl CleanerApp {
             self.apps_job = None;
             self.apps = Some(r);
         }
-        self.ignore_pending |= waiting
-            != (
-                self.smart_job.is_some(),
-                self.junk_job.is_some(),
-                self.clutter_job.is_some(),
-            );
         if let Some(r) = self.clutter_job.as_ref().and_then(|j| j.take()) {
             self.clutter_job = None;
             self.big = Some(r.big);
@@ -834,6 +828,12 @@ impl CleanerApp {
             self.action_job = None;
             self.apply_report(r);
         }
+        self.ignore_pending |= waiting
+            != (
+                self.smart_job.is_some(),
+                self.junk_job.is_some(),
+                self.clutter_job.is_some(),
+            );
     }
 
     fn apply_report(&mut self, r: ActionReport) {

@@ -75,6 +75,14 @@ impl Settings {
             .any(|e| !e.trim().is_empty() && path.starts_with(expand(e.trim())))
     }
 
+    pub fn protects(&self, path: &Path) -> bool {
+        self.ignored(path)
+            || self.ignore.iter().any(|e| {
+                let e = e.trim();
+                !e.is_empty() && expand(e).starts_with(path)
+            })
+    }
+
     pub fn add_ignore(&mut self, entry: &str) -> bool {
         let e = entry.trim().trim_end_matches(['/', '\\']).to_string();
         if e.is_empty() || e == "~" || self.ignore.contains(&e) {
@@ -108,6 +116,9 @@ mod tests {
         assert!(s.ignored(&h.join("Projects/keep/cache/a.bin")));
         assert!(!s.ignored(&h.join("Projects/keeper/a.bin")));
         assert!(!s.ignored(&h.join("Projects")));
+        assert!(s.protects(&h.join("Projects")));
+        assert!(s.protects(&h.join("Projects/keep/cache")));
+        assert!(!s.protects(&h.join("Projects/other")));
     }
 
     #[test]
